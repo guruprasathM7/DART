@@ -183,6 +183,10 @@ class DARTAnalytics {
 
 
     createFileInfoHtml(fileInfo) {
+        // If fileInfo contains custom HTML (for sheet selection), return it directly
+        if (fileInfo.html) {
+            return fileInfo.html;
+        }
         const { columns_info, filename, rows, columns, quality_report } = fileInfo;
         
         if (!columns_info || !Array.isArray(columns_info)) {
@@ -256,6 +260,7 @@ class DARTAnalytics {
         if (!file) return;
         this.addMessage(`📁 Uploading ${file.name}...`, 'user');
         const msg = this.addMessage('🔄 Processing file, please wait...', 'bot');
+        
         try {
             const formData = new FormData();
             formData.append('file', file);
@@ -263,6 +268,71 @@ class DARTAnalytics {
             const result = await res.json();
             
             if (!res.ok) throw new Error(result.error);
+            
+            // Handle multiple sheets in Excel files
+            if (result.multiple_sheets) {
+                msg.remove();
+                // Create sheet selection HTML
+                const messageWrapper = document.createElement('div');
+                messageWrapper.classList.add('flex', 'items-start', 'gap-3', 'message-animate', 'w-full', 'message-wrapper', 'justify-start');
+                
+                messageWrapper.innerHTML = `
+                    <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCAyOCAyOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE0IDIuMzMzMzFMMjUuNjY2NyAyMUgyLjMzMzMzTDE0IDIuMzMzMzFaIiBzdHJva2U9IiNFNUU1RTUiIHN0cm9rZS13aWR0aD0iMi41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPHBhdGggZD0iTTE0IDIxVjI1LjY2NjciIHN0cm9rZT0iI0U1RTVFNSIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K" alt="DART" class="w-10 h-10 rounded-full flex-shrink-0">
+                    <div class="flex flex-col items-start w-full">
+                        <div class="max-w-3xl w-full px-4 py-3 rounded-lg bg-[var(--bg-element-dark)] text-[var(--text-primary)] border border-[var(--border-color)]">
+                            <div class="file-info">
+                                <h3 class="font-semibold text-[var(--text-primary)] mb-2">📑 Multiple Sheets Detected</h3>
+                                <p class="text-[var(--text-secondary)] mb-4">Please select a sheet to analyze:</p>
+                                <form id="sheet-selection-form" class="space-y-4">
+                                    <select name="sheet-select" class="w-full bg-[var(--bg-element-dark)] border border-[var(--border-color)] text-[var(--text-primary)] rounded-md p-2">
+                                        ${result.sheet_names.map(sheet => `<option value="${sheet}">${sheet}</option>`).join('')}
+                                    </select>
+                                    <button type="submit" class="w-full bg-[var(--accent-primary)] text-[var(--bg-main)] font-semibold py-2.5 px-4 rounded-lg hover:bg-[var(--accent-primary-hover)] transition-colors">
+                                        Load Selected Sheet
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>`;
+                
+                // Add the message to the chat
+                const messageEl = this.chatMessages.appendChild(messageWrapper);
+                
+                // Handle sheet selection
+                const form = messageEl.querySelector('#sheet-selection-form');
+                if (form) {
+                    form.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const selectedSheet = form.querySelector('[name="sheet-select"]').value;
+                        const loadingMsg = this.addMessage('🔄 Loading selected sheet...', 'bot');
+                        
+                        try {
+                            const formData = new FormData();
+                            formData.append('file', file);
+                            formData.append('sheet_name', selectedSheet);
+                            
+                            const sheetRes = await fetch(`${this.backendUrl}/upload`, { method: 'POST', body: formData });
+                            const sheetResult = await sheetRes.json();
+                            
+                            if (!sheetRes.ok) throw new Error(sheetResult.error);
+                            this.sessionId = sheetResult.session_id;
+                            loadingMsg.remove();
+                            messageEl.remove();
+                            
+                            if (!sheetResult.columns_info || !Array.isArray(sheetResult.columns_info)) {
+                                throw new Error('Invalid file data structure received');
+                            }
+                            
+                            this.addMessage('', 'bot', { isFileInfo: true, fileInfo: sheetResult });
+                        } catch (error) {
+                            loadingMsg.remove();
+                            this.addMessage(`❌ Error loading sheet: ${error.message}`, 'bot');
+                        }
+                    });
+                }
+                return;
+            }
+            
             this.sessionId = result.session_id;
             msg.remove();
             

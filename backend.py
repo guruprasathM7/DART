@@ -652,8 +652,24 @@ def upload_file():
                                    low_memory=False)
                     
             elif filename.endswith(('.xlsx', '.xls')):
-                # Excel file parsing
-                df = pd.read_excel(file, engine='openpyxl')
+                # Excel file with potential multiple sheets
+                sheet_name = request.form.get('sheet_name')
+                
+                # First, get list of all sheets
+                excel_file = pd.ExcelFile(file, engine='openpyxl')
+                sheet_names = excel_file.sheet_names
+                
+                if len(sheet_names) > 1 and not sheet_name:
+                    # Return the list of sheets if multiple sheets exist and none selected
+                    return jsonify({
+                        'multiple_sheets': True,
+                        'sheet_names': sheet_names,
+                        'message': 'Please select a sheet to analyze'
+                    }), 200
+                
+                # Use the specified sheet or the first one if only one exists
+                sheet_to_use = sheet_name if sheet_name else sheet_names[0]
+                df = pd.read_excel(excel_file, sheet_name=sheet_to_use, engine='openpyxl')
             else:
                 return jsonify({'error': 'Unsupported file type. Please use CSV or Excel.'}), 400
                 
