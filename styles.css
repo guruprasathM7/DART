@@ -46,4 +46,22 @@ body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color
 .stat-label { color: var(--text-secondary); }
 .stat-value { font-size: 1.125rem; font-weight: 600; }
 .filter-select[multiple] { height: 100px; }
+.value-column { 
+    color: #000000; 
+    font-weight: bold; 
+    text-decoration: underline;
+    background-color: white;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.light-theme .value-column {
+    color: #FFFFFF;
+    font-weight: bold;
+    text-decoration: underline;
+    background-color: var(--accent-primary);
+    text-decoration-color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
 

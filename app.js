@@ -338,7 +338,7 @@ class DARTAnalytics {
         this.userSettings.stdDev = stdDev;
         this.userSettings.aggregationPeriod = aggregationPeriod;
 
-        this.addMessage(`🚀 Generating charts for <strong>${valueColumn}</strong> (Rolling Window: ${rollingWindow}, Std Dev: ${stdDev}σ)...`, 'user');
+        this.addMessage(`🚀 Generating charts for <span class="value-column">${valueColumn}</span> (Rolling Window: ${rollingWindow}, Std Dev: ${stdDev}σ)...`, 'user');
         const msg = this.addMessage('🔄 Processing your analysis... This may take a moment.', 'bot');
         
         button.disabled = true;
