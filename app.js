@@ -258,6 +258,26 @@ class DARTAnalytics {
     async handleFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
+
+        // If there's an existing session, show confirmation dialog
+        if (this.sessionId) {
+            const confirmUpload = window.confirm('Loading a new file will clear your current analysis session. Do you want to continue?');
+            if (!confirmUpload) {
+                event.target.value = ''; // Clear the file input
+                return;
+            }
+            
+            // Clear existing session data
+            this.sessionId = null;
+            this.sessionChartCount = 0;
+            this.chartHistory = [];
+            this.updateChartHistoryUI();
+            this.updateExportButton();
+            
+            // Clear chat messages except the welcome message
+            this.showWelcomeScreen();
+        }
+
         this.addMessage(`📁 Uploading ${file.name}...`, 'user');
         const msg = this.addMessage('🔄 Processing file, please wait...', 'bot');
         
