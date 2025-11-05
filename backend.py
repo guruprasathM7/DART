@@ -591,93 +591,133 @@ def create_powerpoint_export(charts_data, session_id):
         
         # Step 2: Initialize PowerPoint presentation
         prs = Presentation()
-        
-        # Step 3: Create title slide
-        title_slide_layout = prs.slide_layouts[0]  # Title slide layout
+        prs.slide_width = Inches(13.33)
+        prs.slide_height = Inches(7.5)
+
+        # --- Define style constants ---
+        TITLE_FONT = 'Segoe UI'
+        BODY_FONT = 'Segoe UI'
+        BLUE = RGBColor(0, 102, 204)
+        GRAY_BLUE_BG = RGBColor(240, 244, 248)
+        DARK_TEXT = RGBColor(40, 40, 40)
+        ACCENT = RGBColor(20, 80, 140)
+
+        # --- Helper to set text formatting ---
+        def style_textframe(frame, font_size=Pt(14), bold=False, color=DARK_TEXT):
+            for p in frame.paragraphs:
+                for run in p.runs:
+                    run.font.name = BODY_FONT
+                    run.font.size = font_size
+                    run.font.bold = bold
+                    run.font.color.rgb = color
+
+        # --- 1. Title Slide ---
+        title_slide_layout = prs.slide_layouts[6]  # Blank for custom styling
         slide = prs.slides.add_slide(title_slide_layout)
-        title = slide.shapes.title
-        subtitle = slide.placeholders[1]
-        
-        # Set title slide content
-        title.text = "DART Analytics Report"
-        subtitle.text = (f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}\n"
-                        f"Total Charts: {len(sorted_charts)}")
-        
-        # Step 4: Create executive summary slide
-        summary_layout = prs.slide_layouts[1]  # Title and content layout
-        slide = prs.slides.add_slide(summary_layout)
-        title = slide.shapes.title
-        title.text = "Executive Summary"
-        
-        # Calculate key business metrics
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = GRAY_BLUE_BG
+
+        title_box = slide.shapes.add_textbox(Inches(2.5), Inches(2.5), Inches(8), Inches(1.2))
+        title_frame = title_box.text_frame
+        title_frame.text = "DART Analytics Report"
+        style_textframe(title_frame, Pt(40), True, ACCENT)
+
+        subtitle_box = slide.shapes.add_textbox(Inches(2.5), Inches(3.5), Inches(8), Inches(1))
+        subtitle_frame = subtitle_box.text_frame
+        subtitle_frame.text = (f"Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}\n"
+                               f"Total Charts: {len(sorted_charts)}")
+        style_textframe(subtitle_frame, Pt(18), False, DARK_TEXT)
+
+        # --- 2. Executive Summary Slide ---
+        layout = prs.slide_layouts[6]
+        slide = prs.slides.add_slide(layout)
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = GRAY_BLUE_BG
+
+        title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.5), Inches(8), Inches(1))
+        title_frame = title_box.text_frame
+        title_frame.text = "Executive Summary"
+        style_textframe(title_frame, Pt(32), True, ACCENT)
+
         charts_with_recent_anomalies = len([c for c in sorted_charts if c.get('latter_half_outliers', 0) > 0])
         total_anomalies = sum(c.get('outliers', 0) for c in sorted_charts)
         recent_anomalies = sum(c.get('latter_half_outliers', 0) for c in sorted_charts)
-        
-        # Add executive summary content
-        content = slide.placeholders[1]
-        summary_text = f"""Key Findings:
 
-• Total Charts Analyzed: {len(sorted_charts)}
-• Charts with Recent Anomalies: {charts_with_recent_anomalies}
-• Total Anomalies Detected: {total_anomalies}
-• Recent Anomalies (Last Half): {recent_anomalies}
+        content_box = slide.shapes.add_textbox(Inches(0.9), Inches(1.8), Inches(10.5), Inches(4))
+        content_frame = content_box.text_frame
+        content_frame.text = (
+            f"Key Findings:\n\n"
+            f"• Total Charts Analyzed: {len(sorted_charts)}\n"
+            f"• Charts with Recent Anomalies: {charts_with_recent_anomalies}\n"
+            f"• Total Anomalies Detected: {total_anomalies}\n"
+            f"• Recent Anomalies (Last Half): {recent_anomalies}\n\n"
+            f"Charts are ordered by recent anomaly count (highest first) for priority review."
+        )
+        style_textframe(content_frame, Pt(20), False, DARK_TEXT)
 
-Charts are ordered by recent anomaly count (highest first) for priority review."""
-        
-        content.text = summary_text
-        
-        # Step 5: Create individual chart slides
+        # --- 3. Individual Chart Slides ---
         for i, chart in enumerate(sorted_charts, 1):
-            # Use blank layout for maximum flexibility
-            chart_layout = prs.slide_layouts[6]  # Blank layout
-            slide = prs.slides.add_slide(chart_layout)
-            
-            # Add chart title with numbering
-            title_box = slide.shapes.add_textbox(Inches(0.5), Inches(0.2), Inches(9), Inches(0.8))
+            slide = prs.slides.add_slide(prs.slide_layouts[6])
+            slide.background.fill.solid()
+            slide.background.fill.fore_color.rgb = RGBColor(255, 255, 255)
+
+            # Header title
+            title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.3), Inches(9), Inches(0.8))
             title_frame = title_box.text_frame
             title_frame.text = f"{i}. {chart.get('title', 'Chart')}"
-            title_frame.paragraphs[0].font.size = Pt(24)
-            title_frame.paragraphs[0].font.bold = True
-            
-            # Add chart image (main content)
+            style_textframe(title_frame, Pt(26), True, ACCENT)
+
+            # Chart Image (Centered, 75% slide height)
             if '_image_buffer' in chart:
                 img_stream = io.BytesIO(chart['_image_buffer'])
-                slide.shapes.add_picture(img_stream, Inches(0.5), Inches(1.2), Inches(9), Inches(5))
-            
-            # Add comprehensive statistics box
-            stats_box = slide.shapes.add_textbox(Inches(0.5), Inches(6.5), Inches(9), Inches(1.5))
-            stats_frame = stats_box.text_frame
-            
-            # Calculate additional metrics for business context
-            zero_pct = (chart.get('zero_values', 0) / chart.get('data_points', 1)) * 100 if chart.get('data_points', 0) > 0 else 0
-            
-            # Create detailed statistics text
-            stats_text = f"""Statistics:
-Data Points: {chart.get('data_points', 'N/A')} | Total Outliers: {chart.get('outliers', 0)} | Recent Outliers: {chart.get('latter_half_outliers', 0)} | Zero Values: {chart.get('zero_values', 0)} ({zero_pct:.1f}%)
-Mean: {chart.get('statistics', {}).get('mean', 0):.3f} | Std Dev: {chart.get('statistics', {}).get('std', 0):.3f} | Min: {chart.get('statistics', {}).get('min', 0):.3f} | Max: {chart.get('statistics', {}).get('max', 0):.3f}
+                slide.shapes.add_picture(img_stream, Inches(0.8), Inches(1.3), Inches(11.8), Inches(4.8))
 
-Note: Charts are ordered by recent anomaly count (highest priority first). High zero percentages may indicate data quality issues or normal operational patterns."""
-            
+            # Stats box
+            stats_box = slide.shapes.add_textbox(Inches(0.8), Inches(6.2), Inches(11.8), Inches(1.2))
+            stats_frame = stats_box.text_frame
+
+            zero_pct = (chart.get('zero_values', 0) / chart.get('data_points', 1)) * 100 if chart.get('data_points', 0) > 0 else 0
+            stats_text = (
+                f"Statistics:\n"
+                f"Data Points: {chart.get('data_points', 'N/A')} | "
+                f"Total Outliers: {chart.get('outliers', 0)} | "
+                f"Recent Outliers: {chart.get('latter_half_outliers', 0)} | "
+                f"Zero Values: {chart.get('zero_values', 0)} ({zero_pct:.1f}%)\n"
+                f"Mean: {chart.get('statistics', {}).get('mean', 0):.3f} | "
+                f"Std Dev: {chart.get('statistics', {}).get('std', 0):.3f} | "
+                f"Min: {chart.get('statistics', {}).get('min', 0):.3f} | "
+                f"Max: {chart.get('statistics', {}).get('max', 0):.3f}\n\n"
+                f"Note: Charts are prioritized by recent anomaly count."
+            )
             stats_frame.text = stats_text
-            stats_frame.paragraphs[0].font.size = Pt(12)
-            
-            # Step 6: Add priority indicators for high-priority charts
+            style_textframe(stats_frame, Pt(14), False, DARK_TEXT)
+
+            # Priority Tag (if recent anomalies)
             if chart.get('latter_half_outliers', 0) > 0:
-                # Add visual priority indicator for charts requiring immediate attention
-                priority_box = slide.shapes.add_textbox(Inches(8.5), Inches(0.2), Inches(1), Inches(0.5))
-                priority_frame = priority_box.text_frame
-                priority_frame.text = "⚠️ HIGH PRIORITY"
-                priority_frame.paragraphs[0].font.size = Pt(10)
-                priority_frame.paragraphs[0].font.bold = True
-        
-        # Step 7: Save presentation to temporary directory
+                shape = slide.shapes.add_shape(
+                    autoshape_type_id=1,  # rectangle
+                    left=Inches(10.8),
+                    top=Inches(0.3),
+                    width=Inches(2.3),
+                    height=Inches(0.6)
+                )
+                fill = shape.fill
+                fill.solid()
+                fill.fore_color.rgb = ACCENT
+                line = shape.line
+                line.fill.background()
+
+                text_frame = shape.text_frame
+                text_frame.text = "High Priority Chart"
+                style_textframe(text_frame, Pt(12), True, RGBColor(255, 255, 255))
+
+        # --- Save output ---
         os.makedirs('temp_exports', exist_ok=True)
         ppt_filename = f"DART_Report_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
         ppt_path = os.path.join('temp_exports', ppt_filename)
         prs.save(ppt_path)
-        
-        print(f"PowerPoint presentation created: {ppt_filename}")
+
+        print(f"PowerPoint report successfully created: {ppt_filename}")
         return ppt_path, ppt_filename
         
     except Exception as e:
