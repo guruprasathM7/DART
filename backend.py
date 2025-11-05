@@ -260,15 +260,39 @@ class CheckColumns:
             resampled_df['upper_bound'] = resampled_df['rolling_mean'] + (std_dev * sigma_estimate)
             resampled_df['lower_bound'] = (resampled_df['rolling_mean'] - (std_dev * sigma_estimate)).clip(lower=0)
             
-            # Step 5: Identify outliers and special values
-            # Outliers are points outside control limits (excluding zeros)
-            resampled_df['outlier'] = resampled_df.apply(
-                lambda r: r[value_col] if (r[value_col] > r['upper_bound'] or r[value_col] < r['lower_bound']) and r[value_col] != 0 else np.nan, 
+            # Step 5: Enhanced outlier detection and classification
+            # Track both high and low outliers separately
+            resampled_df['high_outlier'] = resampled_df.apply(
+                lambda r: r[value_col] if r[value_col] > r['upper_bound'] and r[value_col] != 0 else np.nan,
                 axis=1
             )
+            resampled_df['low_outlier'] = resampled_df.apply(
+                lambda r: r[value_col] if r[value_col] < r['lower_bound'] and r[value_col] != 0 else np.nan,
+                axis=1
+            )
+            
+            # Track extreme outliers - using a much stricter threshold
+            # A point is extreme only if it's more than 5x the distance from mean to control limit
+            # This makes the extreme classification much more selective
+            resampled_df['extreme_high_outlier'] = resampled_df.apply(
+                lambda r: r[value_col] if (r[value_col] > r['rolling_mean'] + (5 * (r['upper_bound'] - r['rolling_mean']))) else np.nan,
+                axis=1
+            )
+            resampled_df['extreme_low_outlier'] = resampled_df.apply(
+                lambda r: r[value_col] if (r[value_col] < r['rolling_mean'] - (5 * (r['rolling_mean'] - r['lower_bound'])) 
+                                         and r[value_col] != 0) else np.nan,
+                axis=1
+            )
+            
+            # Combined outliers for backward compatibility
+            resampled_df['outlier'] = resampled_df.apply(
+                lambda r: r[value_col] if pd.notna(r['high_outlier']) or pd.notna(r['low_outlier']) else np.nan,
+                axis=1
+            )
+            
             # Track zero values separately as they may indicate special conditions
             resampled_df['zero_value'] = resampled_df.apply(
-                lambda r: r[value_col] if r[value_col] == 0 else np.nan, 
+                lambda r: r[value_col] if r[value_col] == 0 else np.nan,
                 axis=1
             )
             
@@ -320,7 +344,23 @@ class CheckColumns:
         fig, ax = plt.subplots(figsize=(15, 7))  # Wide format for time series
         ax.clear()  # Ensure clean axes state
         
-        # Step 3: Plot the main data elements
+        # Step 3: Calculate dynamic y-axis limits including outliers
+        all_values = pd.concat([
+            plot_df[value_col],
+            plot_df['upper_bound'],
+            plot_df['lower_bound'].replace(0, np.nan)  # Exclude artificial zero lower bounds
+        ]).dropna()
+        
+        if len(all_values) > 0:
+            y_min = all_values.min()
+            y_max = all_values.max()
+            y_range = y_max - y_min
+            # Add padding to ensure all points are visible
+            y_padding = y_range * 0.1  # 10% padding
+            y_min = max(0, y_min - y_padding)  # Don't go below 0
+            y_max = y_max + y_padding
+            ax.set_ylim(y_min, y_max)
+        
         # Main data line with markers
         ax.plot(plot_df[date_col], plot_df[value_col], 
                marker='o', linestyle='-', color='blue', 
@@ -342,22 +382,44 @@ class CheckColumns:
         ax.fill_between(plot_df[date_col], plot_df['lower_bound'], plot_df['upper_bound'], 
                        color='gray', alpha=0.15, label='Control Zone')
         
-        # Step 4: Highlight special points (outliers and zeros)
-        outliers_mask = plot_df['outlier'].notna()
+        # Step 4: Highlight different types of outliers and special points
+        high_outliers_mask = plot_df['high_outlier'].notna()
+        low_outliers_mask = plot_df['low_outlier'].notna()
+        extreme_high_mask = plot_df['extreme_high_outlier'].notna()
+        extreme_low_mask = plot_df['extreme_low_outlier'].notna()
         zero_mask = plot_df['zero_value'].notna()
         
-        # Outliers (points outside control limits)
-        if outliers_mask.any(): 
-            ax.scatter(plot_df.loc[outliers_mask, date_col], 
-                      plot_df.loc[outliers_mask, 'outlier'], 
-                      color='red', s=100, zorder=5, 
-                      label=f'Outliers ({outliers_mask.sum()})')
+        # Regular outliers (outside control limits)
+        regular_outliers_mask = ((high_outliers_mask | low_outliers_mask) & 
+                               ~(extreme_high_mask | extreme_low_mask))
+        if regular_outliers_mask.any():
+            regular_values = plot_df.loc[regular_outliers_mask, 'outlier']
+            ax.scatter(plot_df.loc[regular_outliers_mask, date_col],
+                      regular_values,
+                      color='yellow', s=80, zorder=5, alpha=0.6,
+                      label=f'Regular Outliers ({regular_outliers_mask.sum()})')
+        
+        # Extreme high outliers
+        if extreme_high_mask.any():
+            ax.scatter(plot_df.loc[extreme_high_mask, date_col],
+                      plot_df.loc[extreme_high_mask, 'extreme_high_outlier'],
+                      color='darkred', s=200, marker='*', zorder=7, 
+                      edgecolors='red', linewidth=1,
+                      label=f'Severe High Outliers ({extreme_high_mask.sum()})')
+            
+        # Extreme low outliers
+        if extreme_low_mask.any():
+            ax.scatter(plot_df.loc[extreme_low_mask, date_col],
+                      plot_df.loc[extreme_low_mask, 'extreme_low_outlier'],
+                      color='indigo', s=200, marker='*', zorder=7,
+                      edgecolors='purple', linewidth=1,
+                      label=f'Severe Low Outliers ({extreme_low_mask.sum()})')
         
         # Zero values (may indicate special conditions)
-        if zero_mask.any(): 
-            ax.scatter(plot_df.loc[zero_mask, date_col], 
-                      plot_df.loc[zero_mask, 'zero_value'], 
-                      color='orange', s=50, zorder=5, 
+        if zero_mask.any():
+            ax.scatter(plot_df.loc[zero_mask, date_col],
+                      plot_df.loc[zero_mask, 'zero_value'],
+                      color='orange', s=50, zorder=5,
                       label=f'Zero Values ({zero_mask.sum()})')
         
         # Step 5: Create descriptive titles and labels
@@ -398,23 +460,62 @@ class CheckColumns:
         plt.clf()
         plt.cla()
         
-        # Step 9: Calculate summary statistics
+        # Step 9: Calculate comprehensive summary statistics
         total_points = len(plot_df)
+        half_point = max(1, total_points // 2)
         
-        # Create comprehensive chart data package
+        # Calculate outlier statistics for different categories
+        total_outliers = int((high_outliers_mask | low_outliers_mask).sum())
+        total_extreme_outliers = int((extreme_high_mask | extreme_low_mask).sum())
+        recent_outliers = int((high_outliers_mask | low_outliers_mask).iloc[half_point:].sum())
+        recent_extreme_outliers = int((extreme_high_mask | extreme_low_mask).iloc[half_point:].sum())
+        
+        # Get current axis limits to determine off-scale points
+        y_min, y_max = ax.get_ylim()
+        off_scale_high = int(sum(plot_df[value_col] > y_max))
+        off_scale_low = int(sum((plot_df[value_col] < y_min) & (plot_df[value_col] != 0)))
+        
+        # Calculate full outlier statistics, including those that might be outside visible range
+        all_outliers = {
+            'total': total_outliers,
+            'high': int(high_outliers_mask.sum()),
+            'low': int(low_outliers_mask.sum()),
+            'extreme_high': int(extreme_high_mask.sum()),
+            'extreme_low': int(extreme_low_mask.sum()),
+            'recent_total': recent_outliers,
+            'recent_extreme': recent_extreme_outliers,
+            'max_value': float(plot_df[value_col].max()),
+            'min_value': float(plot_df[value_col].min()),
+            'visible_range': {
+                'min': float(y_min),
+                'max': float(y_max)
+            },
+            'off_scale': {
+                'high': off_scale_high,
+                'low': off_scale_low,
+                'total': off_scale_high + off_scale_low
+            }
+        }
+        
+        # Create comprehensive chart data package with enhanced outlier information
         chart_data = {
             'image': base64.b64encode(img_buffer.getvalue()).decode(),  # Base64 encoded image
             'title': f"Chart for {value_col}{title_add}", 
             'group': group_name, 
-            'data_points': total_points, 
-            'outliers': int(outliers_mask.sum()),  # Total outliers
-            'latter_half_outliers': int(outliers_mask.iloc[max(1, total_points // 2):].sum()),  # Recent outliers
-            'zero_values': int(zero_mask.sum()), 
+            'data_points': total_points,
+            'outlier_stats': all_outliers,
+            'outliers': total_outliers,  # For backward compatibility
+            'latter_half_outliers': recent_outliers,  # For backward compatibility
+            'zero_values': int(zero_mask.sum()),
             'statistics': {
-                'mean': float(plot_df[value_col].mean()), 
-                'std': float(plot_df[value_col].std()), 
-                'min': float(plot_df[value_col].min()), 
-                'max': float(plot_df[value_col].max())
+                'mean': float(plot_df[value_col].mean()),
+                'std': float(plot_df[value_col].std()),
+                'min': float(plot_df[value_col].min()),
+                'max': float(plot_df[value_col].max()),
+                'control_limits': {
+                    'upper': float(plot_df['upper_bound'].mean()),
+                    'lower': float(plot_df['lower_bound'].replace(0, np.nan).mean())
+                }
             }
         }
         

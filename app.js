@@ -380,17 +380,115 @@ class DARTAnalytics {
     }
     
     createChartHtml(chartData) {
+        const stats = chartData.outlier_stats || {
+            total: chartData.outliers,
+            high: 0,
+            low: 0,
+            extreme_high: 0,
+            extreme_low: 0,
+            recent_total: chartData.latter_half_outliers,
+            recent_extreme: 0
+        };
+        
         return `
             <div class="chart-container">
                 <h3 class="font-semibold text-[var(--text-primary)] mb-3">${chartData.title}</h3>
                 <img src="data:image/png;base64,${chartData.image}" alt="${chartData.title}" class="w-full rounded-lg border border-[var(--border-color)]">
-                <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                    <div class="stat-box"><div class="stat-label">Data Points</div><div class="stat-value">${chartData.data_points}</div></div>
-                    <div class="stat-box"><div class="stat-label">Total Outliers</div><div class="stat-value text-red-400">${chartData.outliers}</div></div>
-                    <div class="stat-box"><div class="stat-label">Recent Outliers</div><div class="stat-value ${chartData.latter_half_outliers > 0 ? 'text-yellow-400' : ''}">${chartData.latter_half_outliers}</div></div>
-                    <div class="stat-box"><div class="stat-label">Zero Values</div><div class="stat-value text-orange-400">${chartData.zero_values}</div></div>
-                    <div class="stat-box"><div class="stat-label">Mean</div><div class="stat-value">${chartData.statistics.mean.toFixed(2)}</div></div>
+                
+                <!-- Primary Statistics -->
+                <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div class="stat-box">
+                        <div class="stat-label">Data Points</div>
+                        <div class="stat-value">${chartData.data_points}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Mean Value</div>
+                        <div class="stat-value">${chartData.statistics.mean.toFixed(2)}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Zero Values</div>
+                        <div class="stat-value text-orange-400">${chartData.zero_values}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Value Range</div>
+                        <div class="stat-value text-xs">
+                            ${chartData.statistics.min.toFixed(1)} - ${chartData.statistics.max.toFixed(1)}
+                        </div>
+                    </div>
                 </div>
+                
+                <!-- Outlier Analysis -->
+                <div class="mt-6 bg-[var(--bg-element-dark)] rounded-lg p-4 border border-[var(--border-color)]">
+                    <h4 class="text-sm font-semibold text-[var(--text-primary)] mb-3">📊 Outlier Analysis</h4>
+                    
+                    <!-- Total Outliers Summary -->
+                    <div class="mb-4 p-3 bg-[var(--accent-primary)]/5 rounded-lg border-2 border-[var(--accent-primary)]/20">
+                        <div class="flex items-center justify-between">
+                            <div class="text-[var(--text-primary)] font-medium">Total Outliers</div>
+                            <div class="text-2xl font-bold text-[var(--accent-primary)]">${stats.total}</div>
+                        </div>
+                        <div class="mt-1 text-xs text-[var(--text-secondary)]">
+                            <span class="inline-flex items-center">
+                                <span class="w-2 h-2 rounded-full bg-yellow-400 mr-1"></span>
+                                ${stats.high + stats.low} outside control limits
+                            </span>
+                            <span class="mx-2">•</span>
+                            <span class="inline-flex items-center">
+                                <span class="w-2 h-2 rounded-full bg-red-500 mr-1"></span>
+                                ${stats.extreme_high + stats.extreme_low} extreme deviations
+                            </span>
+                        </div>
+                        ${stats.off_scale && stats.off_scale.total > 0 ? `
+                        <div class="mt-2 text-xs bg-orange-500/10 p-2 rounded border border-orange-500/20">
+                            <div class="text-orange-400 font-medium">⚠️ Additional outliers outside visible range:</div>
+                            <div class="mt-1 text-[var(--text-secondary)]">
+                                ${stats.off_scale.high > 0 ? `${stats.off_scale.high} above ${stats.visible_range.max.toFixed(1)}` : ''}
+                                ${stats.off_scale.high > 0 && stats.off_scale.low > 0 ? ' • ' : ''}
+                                ${stats.off_scale.low > 0 ? `${stats.off_scale.low} below ${stats.visible_range.min.toFixed(1)}` : ''}
+                            </div>
+                            <div class="mt-1 text-[var(--text-secondary)]">
+                                Full data range: ${stats.min_value.toFixed(1)} - ${stats.max_value.toFixed(1)}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <!-- Regular Outliers (Combined) -->
+                        <div class="stat-box ${(stats.high + stats.low) > 0 ? 'bg-yellow-500/10' : ''}">
+                            <div class="stat-label">Regular Outliers</div>
+                            <div class="stat-value text-yellow-400">${stats.high + stats.low}</div>
+                        </div>
+                        
+                        <!-- Extreme Outliers -->
+                        <div class="stat-box ${stats.extreme_high > 0 ? 'bg-red-900/20' : ''}">
+                            <div class="stat-label">Extreme High</div>
+                            <div class="stat-value text-red-500">${stats.extreme_high}</div>
+                        </div>
+                        <div class="stat-box ${stats.extreme_low > 0 ? 'bg-purple-900/20' : ''}">
+                            <div class="stat-label">Extreme Low</div>
+                            <div class="stat-value text-purple-500">${stats.extreme_low}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Anomalies -->
+                    ${(stats.recent_total > 0 || stats.recent_extreme > 0) ? `
+                    <div class="mt-3 p-2 bg-yellow-500/10 rounded border border-yellow-500/20">
+                        <div class="text-yellow-400 text-xs font-medium">
+                            ⚠️ Recent Anomalies (Last 50% of data):
+                            <span class="ml-1">${stats.recent_total} outliers</span>
+                            ${stats.recent_extreme > 0 ? `<span class="ml-1 text-red-400">(${stats.recent_extreme} extreme)</span>` : ''}
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+                
+                <!-- Control Limits -->
+                ${chartData.statistics.control_limits ? `
+                <div class="mt-4 text-xs text-[var(--text-secondary)]">
+                    Control Limits: ${chartData.statistics.control_limits.lower.toFixed(2)} - ${chartData.statistics.control_limits.upper.toFixed(2)}
+                </div>
+                ` : ''}
             </div>`;
     }
 
