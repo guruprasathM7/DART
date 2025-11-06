@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="light-theme">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8" />
@@ -19,7 +19,7 @@
     <link rel="stylesheet" href="styles.css" />
 </head>
 
-<body class="bg-[var(--bg-main)]">
+<body class="bg-[var(--bg-main)] text-[var(--text-primary)]">
     <div class="flex h-screen">
         <!-- Sidebar -->
         <aside id="sidebar"
@@ -31,10 +31,10 @@
                         class="logo-glow">
                         <use href="#dart-logo" />
                     </svg>
-                    <span class="text-xl font-bold text-[var(--text-primary)]">DART</span>
+                    <span class="text-xl font-bold">DART</span>
                 </div>
                 <button id="close-menu-btn"
-                    class="md:hidden p-2 -mr-2 rounded-md text-gray-400 hover:text-[var(--text-primary)] hover:bg-white/10">
+                    class="md:hidden p-2 -mr-2 rounded-md text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-element-dark)]">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18" />
@@ -69,7 +69,7 @@
 
             <div class="flex-1 overflow-y-auto custom-scrollbar">
                 <nav class="p-2">
-                    <h3 class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Charts</h3>
+                    <h3 class="px-3 py-2 text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Recent Charts</h3>
                     <ul id="chart-history"></ul>
                 </nav>
             </div>
@@ -80,7 +80,7 @@
             <header
                 class="w-full max-w-4xl mx-auto flex items-center justify-between p-4 z-10 flex-shrink-0">
                 <button id="menu-toggle-btn"
-                    class="md:hidden p-2 -ml-2 rounded-md text-[var(--text-secondary)] hover:bg-black/20">
+                    class="md:hidden p-2 -ml-2 rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-element-dark)]">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2">
                         <line x1="3" y1="12" x2="21" y2="12" />
@@ -88,10 +88,10 @@
                         <line x1="3" y1="18" x2="21" y2="18" />
                     </svg>
                 </button>
-                <span class="md:hidden text-lg font-bold text-[var(--text-primary)]">DART</span>
+                <span class="md:hidden text-lg font-bold">DART</span>
                 <div class="flex items-center gap-2 ml-auto">
                     <button id="theme-toggle-btn"
-                        class="p-2 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/20"
+                        class="p-2 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-element-dark)]"
                         title="Toggle Theme">
                         <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
                             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden">
@@ -117,14 +117,14 @@
             <div id="chat-container"
                 class="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar w-full max-w-4xl">
                 <div id="chat-messages" class="flex flex-col gap-5 w-full">
-                    <div class="flex flex-col items-center justify-center h-full text-center text-[var(--text-secondary)]">
+                    <div class="flex flex-col items-center justify-center h-full text-center">
                         <!-- BIG DART Logo (No Pulse, Only Hover Glow) -->
                         <svg width="80" height="80" viewBox="0 0 28 28" fill="none"
                             xmlns="http://www.w3.org/2000/svg" class="logo-glow-big mb-6">
                             <use href="#dart-logo" />
                         </svg>
-                        <h2 class="text-2xl font-semibold text-[var(--text-primary)] mb-2">DART Analytics Assistant</h2>
-                        <p class="text-lg text-[var(--text-secondary)]">Ready to turn your data into insights. Upload a CSV or Excel file to begin.</p>
+                        <h2 class="text-2xl font-semibold mb-3">DART Analytics Assistant</h2>
+                        <p class="text-base max-w-md mx-auto leading-relaxed">Ready to turn your data into insights. Upload a CSV or Excel file to begin.</p>
                     </div>
                 </div>
             </div>
@@ -147,7 +147,7 @@
                         </button>
                         <input type="file" id="file-upload" accept=".csv,.xlsx,.xls" class="hidden" />
                         <input type="text" id="chat-input" placeholder="Upload a data file to begin..."
-                            class="flex-1 w-full bg-transparent text-[var(--text-primary)] placeholder-gray-500 focus:outline-none" />
+                            class="flex-1 w-full bg-transparent placeholder-[var(--text-muted)] focus:outline-none text-base" />
                         <button type="submit" id="send-btn"
                             class="p-2 bg-[var(--accent-primary)] text-[var(--bg-main)] rounded-lg hover:bg-[var(--accent-primary-hover)]"
                             title="Send message">
