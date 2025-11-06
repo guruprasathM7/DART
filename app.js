@@ -667,8 +667,25 @@ class DARTAnalytics {
     }
 
     toggleSidebar(show) { this.sidebar.classList.toggle('-translate-x-full', !show); }
-    toggleTheme() { const isLight = document.body.classList.toggle('light-theme'); this.applyTheme(isLight ? 'light' : 'dark'); localStorage.setItem('theme', isLight ? 'light' : 'dark'); }
-    applyTheme(theme) { document.getElementById('theme-icon-sun').classList.toggle('hidden', theme === 'dark'); document.getElementById('theme-icon-moon').classList.toggle('hidden', theme === 'light'); }
+    toggleTheme() {
+    const html = document.documentElement;               // <html>
+    const isLight = html.classList.toggle('light-theme'); // toggle class
+    const newTheme = isLight ? 'light' : 'dark';
+    localStorage.setItem('theme', newTheme);
+    this.applyTheme(newTheme);
+}
+
+applyTheme(theme) {
+    const sun  = document.getElementById('theme-icon-sun');
+    const moon = document.getElementById('theme-icon-moon');
+    if (theme === 'light') {
+        sun.classList.add('hidden');
+        moon.classList.remove('hidden');
+    } else {
+        sun.classList.remove('hidden');
+        moon.classList.add('hidden');
+    }
+}
     async checkBackendHealth() {
         try { const res = await fetch(`${this.backendUrl}/health`); if (!res.ok) throw new Error(); console.log('✅ Backend connected'); } catch (error) { this.addMessage('⚠️ Connection to the backend server failed. Please ensure the Python server is running.', 'bot'); }
     }

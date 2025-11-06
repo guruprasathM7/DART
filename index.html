@@ -1,30 +1,72 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="light-theme">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DART Analytics Assistant</title>
+
+    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Marked.js for Markdown -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.2.12/marked.min.js"></script>
-    <link rel="stylesheet" href="styles.css">
+
+    <!-- Main Styles -->
+    <link rel="stylesheet" href="styles.css" />
 </head>
+
 <body class="bg-[var(--bg-main)]">
     <div class="flex h-screen">
         <!-- Sidebar -->
-        <aside id="sidebar" class="w-72 bg-[var(--bg-sidebar)] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out -translate-x-full fixed h-full z-30 md:relative md:translate-x-0 border-r border-[var(--border-color)]">
+        <aside id="sidebar"
+            class="w-72 bg-[var(--bg-sidebar)] flex-shrink-0 flex flex-col transition-transform duration-300 ease-in-out -translate-x-full fixed h-full z-30 md:relative md:translate-x-0 border-r border-[var(--border-color)]">
             <div class="p-4 flex justify-between items-center border-b border-[var(--border-color)]">
                 <div class="flex items-center gap-3">
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-glow"><path d="M14 2.33331L25.6667 21H2.33333L14 2.33331Z" stroke="var(--text-primary)" stroke-width="2.5"/><path d="M14 21V25.6667" stroke="var(--text-primary)" stroke-width="2.5"/></svg>
+                    <!-- Sidebar Logo -->
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        class="logo-glow">
+                        <use href="#dart-logo" />
+                    </svg>
                     <span class="text-xl font-bold text-[var(--text-primary)]">DART</span>
                 </div>
-                <button id="close-menu-btn" class="md:hidden p-2 -mr-2 rounded-md text-gray-400 hover:text-[var(--text-primary)] hover:bg-white/10"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                <button id="close-menu-btn"
+                    class="md:hidden p-2 -mr-2 rounded-md text-gray-400 hover:text-[var(--text-primary)] hover:bg-white/10">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
             </div>
-            
+
             <div class="p-4 space-y-3">
-                <button id="new-conversation-btn" class="w-full flex items-center justify-center gap-2.5 bg-[var(--accent-primary)] text-[var(--bg-main)] font-semibold py-2.5 px-4 rounded-lg hover:bg-[var(--accent-primary-hover)] transition-colors"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Analysis</button>
-                <button id="export-ppt-btn" disabled class="w-full flex items-center justify-center gap-2.5 bg-[var(--bg-element-dark)] text-[var(--text-secondary)] font-medium py-2.5 px-4 rounded-lg hover:bg-[var(--bg-element-medium)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>📊 Export to PowerPoint</button>
+                <button id="new-conversation-btn"
+                    class="w-full flex items-center justify-center gap-2.5 bg-[var(--accent-primary)] text-[var(--bg-main)] font-semibold py-2.5 px-4 rounded-lg hover:bg-[var(--accent-primary-hover)] transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    New Analysis
+                </button>
+                <button id="export-ppt-btn" disabled
+                    class="w-full flex items-center justify-center gap-2.5 bg-[var(--bg-element-dark)] text-[var(--text-secondary)] font-medium py-2.5 px-4 rounded-lg hover:bg-[var(--bg-element-medium)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14,2 14,8 20,8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10,9 9,9 8,9" />
+                    </svg>
+                    Export to PowerPoint
+                </button>
             </div>
+
             <div class="flex-1 overflow-y-auto custom-scrollbar">
                 <nav class="p-2">
                     <h3 class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Recent Charts</h3>
@@ -35,32 +77,164 @@
 
         <!-- Main Content -->
         <main class="flex-1 flex flex-col items-center bg-[var(--bg-main)] relative">
-            <header class="w-full max-w-4xl mx-auto flex items-center justify-between p-4 z-10 flex-shrink-0">
-                <button id="menu-toggle-btn" class="md:hidden p-2 -ml-2 rounded-md text-[var(--text-secondary)] hover:bg-black/20"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+            <header
+                class="w-full max-w-4xl mx-auto flex items-center justify-between p-4 z-10 flex-shrink-0">
+                <button id="menu-toggle-btn"
+                    class="md:hidden p-2 -ml-2 rounded-md text-[var(--text-secondary)] hover:bg-black/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12" />
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                </button>
                 <span class="md:hidden text-lg font-bold text-[var(--text-primary)]">DART</span>
                 <div class="flex items-center gap-2 ml-auto">
-                    <button id="theme-toggle-btn" class="p-2 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/20" title="Toggle Theme">
-                        <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <button id="theme-toggle-btn"
+                        class="p-2 rounded-full text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-black/20"
+                        title="Toggle Theme">
+                        <svg id="theme-icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="hidden">
+                            <circle cx="12" cy="12" r="5" />
+                            <line x1="12" y1="1" x2="12" y2="3" />
+                            <line x1="12" y1="21" x2="12" y2="23" />
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                            <line x1="1" y1="12" x2="3" y2="12" />
+                            <line x1="21" y1="12" x2="23" y2="12" />
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                        </svg>
+                        <svg id="theme-icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                        </svg>
                     </button>
                 </div>
             </header>
 
-            <div id="chat-container" class="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar w-full max-w-4xl"><div id="chat-messages" class="flex flex-col gap-5 w-full"></div></div>
+            <!-- Chat Container -->
+            <div id="chat-container"
+                class="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar w-full max-w-4xl">
+                <div id="chat-messages" class="flex flex-col gap-5 w-full">
+                    <div class="flex flex-col items-center justify-center h-full text-center text-[var(--text-secondary)]">
+                        <!-- BIG DART Logo (No Pulse, Only Hover Glow) -->
+                        <svg width="80" height="80" viewBox="0 0 28 28" fill="none"
+                            xmlns="http://www.w3.org/2000/svg" class="logo-glow-big mb-6">
+                            <use href="#dart-logo" />
+                        </svg>
+                        <h2 class="text-2xl font-semibold text-[var(--text-primary)] mb-2">DART Analytics Assistant</h2>
+                        <p class="text-lg text-[var(--text-secondary)]">Ready to turn your data into insights. Upload a CSV or Excel file to begin.</p>
+                    </div>
+                </div>
+            </div>
 
+            <!-- Input Form -->
             <div class="w-full max-w-4xl p-4 flex-shrink-0">
                 <div class="w-full bg-[var(--bg-main)]/50 backdrop-blur-md rounded-2xl">
-                    <form id="chat-form" class="flex items-center gap-2 md:gap-4 bg-[var(--bg-element-medium)] border border-[var(--border-color)] rounded-xl p-2 focus-within:ring-2 focus-within:ring-[var(--accent-primary)] transition-shadow">
-                        <button type="button" id="file-upload-btn" class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg" title="Upload CSV/Excel"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg></button>
-                        <input type="file" id="file-upload" accept=".csv,.xlsx,.xls" class="hidden">
-                        <input type="text" id="chat-input" placeholder="Upload a data file to begin..." class="flex-1 w-full bg-transparent text-[var(--text-primary)] placeholder-gray-500 focus:outline-none">
-                        <button type="submit" id="send-btn" class="p-2 bg-[var(--accent-primary)] text-[var(--bg-main)] rounded-lg hover:bg-[var(--accent-primary-hover)]" title="Send message"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button>
+                    <form id="chat-form"
+                        class="flex items-center gap-2 md:gap-4 bg-[var(--bg-element-medium)] border border-[var(--border-color)] rounded-xl p-2 focus-within:ring-2 focus-within:ring-[var(--accent-primary)] transition-shadow">
+                        <button type="button" id="file-upload-btn"
+                            class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg"
+                            title="Upload CSV/Excel">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14,2 14,8 20,8" />
+                                <line x1="12" y1="18" x2="12" y2="12" />
+                                <line x1="9" y1="15" x2="15" y2="15" />
+                            </svg>
+                        </button>
+                        <input type="file" id="file-upload" accept=".csv,.xlsx,.xls" class="hidden" />
+                        <input type="text" id="chat-input" placeholder="Upload a data file to begin..."
+                            class="flex-1 w-full bg-transparent text-[var(--text-primary)] placeholder-gray-500 focus:outline-none" />
+                        <button type="submit" id="send-btn"
+                            class="p-2 bg-[var(--accent-primary)] text-[var(--bg-main)] rounded-lg hover:bg-[var(--accent-primary-hover)]"
+                            title="Send message">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14" />
+                                <path d="m12 5 7 7-7 7" />
+                            </svg>
+                        </button>
                     </form>
                 </div>
             </div>
         </main>
     </div>
+
+    <!-- SVG Definitions (Reusable) -->
+    <svg width="0" height="0" style="position: absolute;">
+        <defs>
+            <!-- Reusable DART Logo Path -->
+            <g id="dart-logo">
+                <path d="M14 2.33331L25.6667 21H2.33333L14 2.33331Z" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M14 21V25.6667" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+                    stroke-linejoin="round" />
+            </g>
+
+            <!-- Glow Filters -->
+            <filter id="glow-dark" x="-100%" y="-100%" width="300%" height="300%">
+                <feGaussianBlur stdDeviation="3" result="blur1" />
+                <feGaussianBlur stdDeviation="6" result="blur2" />
+                <feFlood flood-color="#FFFFFF" flood-opacity="0.7" result="glow1" />
+                <feFlood flood-color="#FFFFFF" flood-opacity="0.5" result="glow2" />
+                <feComposite in="glow1" in2="blur1" operator="in" result="glow1" />
+                <feComposite in="glow2" in2="blur2" operator="in" result="glow2" />
+                <feMerge>
+                    <feMergeNode in="glow2" />
+                    <feMergeNode in="glow1" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+
+            <filter id="glow-light" x="-100%" y="-100%" width="300%" height="300%">
+                <feGaussianBlur stdDeviation="3" result="blur1" />
+                <feGaussianBlur stdDeviation="6" result="blur2" />
+                <feFlood flood-color="#171717" flood-opacity="0.6" result="glow1" />
+                <feFlood flood-color="#171717" flood-opacity="0.4" result="glow2" />
+                <feComposite in="glow1" in2="blur1" operator="in" result="glow1" />
+                <feComposite in="glow2" in2="blur2" operator="in" result="glow2" />
+                <feMerge>
+                    <feMergeNode in="glow2" />
+                    <feMergeNode in="glow1" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+
+            <!-- Big Logo Filters (Stronger Glow) -->
+            <filter id="glow-dark-big" x="-150%" y="-150%" width="400%" height="400%">
+                <feGaussianBlur stdDeviation="4" result="blur1" />
+                <feGaussianBlur stdDeviation="8" result="blur2" />
+                <feFlood flood-color="#FFFFFF" flood-opacity="0.75" result="glow1" />
+                <feFlood flood-color="#FFFFFF" flood-opacity="0.55" result="glow2" />
+                <feComposite in="glow1" in2="blur1" operator="in" result="glow1" />
+                <feComposite in="glow2" in2="blur2" operator="in" result="glow2" />
+                <feMerge>
+                    <feMergeNode in="glow2" />
+                    <feMergeNode in="glow1" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+
+            <filter id="glow-light-big" x="-150%" y="-150%" width="400%" height="400%">
+                <feGaussianBlur stdDeviation="4" result="blur1" />
+                <feGaussianBlur stdDeviation="8" result="blur2" />
+                <feFlood flood-color="#171717" flood-opacity="0.65" result="glow1" />
+                <feFlood flood-color="#171717" flood-opacity="0.45" result="glow2" />
+                <feComposite in="glow1" in2="blur1" operator="in" result="glow1" />
+                <feComposite in="glow2" in2="blur2" operator="in" result="glow2" />
+                <feMerge>
+                    <feMergeNode in="glow2" />
+                    <feMergeNode in="glow1" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+        </defs>
+    </svg>
+
     <script src="app.js"></script>
 </body>
-</html>
 
+</html>
