@@ -11,9 +11,7 @@ Key Features:
 - Control chart generation with statistical analysis
 - PowerPoint export functionality
 - Session management for multi-chart workflows
-
-Author: DART Analytics Team
-Version: 2.2 (Production Ready)
+- Generates Excel file with outlier cells highlighted.
 """
 
 # Core Flask imports for web server functionality
@@ -43,6 +41,11 @@ from pptx import Presentation  # Create PowerPoint presentations
 from pptx.util import Inches, Pt  # Measurement units
 from pptx.enum.text import PP_ALIGN  # Text alignment
 from pptx.dml.color import RGBColor  # Color management
+
+# Excel styling library
+import openpyxl
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 # Suppress matplotlib warnings in production
 warnings.filterwarnings("ignore", "Could not infer format", UserWarning)
@@ -76,14 +79,14 @@ def convert_numpy_types(obj):
     if isinstance(obj, np.floating): 
         return float(obj)
     if isinstance(obj, np.bool_): 
-        return bool(obj)  # Handle NumPy boolean types
+        return bool(obj)
     if isinstance(obj, np.ndarray): 
-        return obj.tolist()  # Convert arrays to lists
+        return obj.tolist()
     if isinstance(obj, dict): 
         return {key: convert_numpy_types(value) for key, value in obj.items()}
     if isinstance(obj, list): 
         return [convert_numpy_types(item) for item in obj]
-    return obj  # Return unchanged if not a NumPy type
+    return obj
 
 class CheckColumns:
     """
@@ -100,19 +103,10 @@ class CheckColumns:
     """
     
     def __init__(self, data_df):
-        """
-        Initialize the CheckColumns analyzer with a pandas DataFrame.
-        
-        Args:
-            data_df (pd.DataFrame): The input data to analyze
-            
-        Raises:
-            ValueError: If input is not a pandas DataFrame
-        """
         if not isinstance(data_df, pd.DataFrame):
             raise ValueError("Input data must be a pandas DataFrame.")
-        self.df = data_df.copy()  # Create a copy to avoid modifying original data
-        self.session_charts = []  # Store generated charts for PowerPoint export
+        self.df = data_df.copy()
+        self.session_charts = []
 
     def create_control_chart(self, value_col, date_col, cut_cols=None, filters=None, aggregation_period='W', rolling_window=7, std_dev=2):
         """
@@ -158,11 +152,8 @@ class CheckColumns:
         initial_rows = len(filtered_df)
         clean_df = filtered_df.dropna(subset=[date_col, value_col]).copy()
         
-        # Convert columns to appropriate data types
         clean_df[value_col] = pd.to_numeric(clean_df[value_col], errors='coerce')
         clean_df[date_col] = pd.to_datetime(clean_df[date_col], errors='coerce')
-        
-        # Remove rows where conversion failed
         clean_df.dropna(subset=[date_col, value_col], inplace=True)
         
         rows_dropped = initial_rows - len(clean_df)
@@ -173,30 +164,26 @@ class CheckColumns:
         
         # Step 3: Handle data grouping (cut columns)
         if cut_cols and len(cut_cols) > 0:
-            # Validate cut columns - only use columns that exist and have variation
             valid_cut_cols = []
             for col in cut_cols:
                 if col in clean_df.columns and clean_df[col].nunique() > 1:
                     valid_cut_cols.append(col)
             
             if valid_cut_cols:
-                # Create separate charts for each group
                 grouped_by_cuts = clean_df.groupby(valid_cut_cols)
                 
                 for group_key, group_df in grouped_by_cuts:
-                    if len(group_df) < 2:  # Skip groups with insufficient data
+                    if len(group_df) < 2:
                         continue
                     
                     chart_data = self._process_group(group_df, value_col, date_col, group_key, valid_cut_cols, aggregation_period, rolling_window, std_dev)
                     if chart_data:
                         charts_data.append(chart_data)
             else:
-                # No valid cut columns, create single chart
                 chart_data = self._process_group(clean_df, value_col, date_col, None, [], aggregation_period, rolling_window, std_dev)
                 if chart_data:
                     charts_data.append(chart_data)
         else:
-            # No cut columns specified, create single chart for all data
             chart_data = self._process_group(clean_df, value_col, date_col, None, [], aggregation_period, rolling_window, std_dev)
             if chart_data:
                 charts_data.append(chart_data)
@@ -228,40 +215,33 @@ class CheckColumns:
             dict or None: Chart data dictionary or None if processing fails
         """
         try:
-            # Step 1: Aggregate data by time period
-            # Set date as index and resample by specified period (D/W/M/Y)
+            # Store original indices for Excel highlighting
+            original_indices = group_df.index.tolist()
+            
+            # Aggregate data by time period
             group_df_resampled = group_df.set_index(date_col)[[value_col]].resample(aggregation_period).mean().dropna().reset_index()
-            if len(group_df_resampled) < 2:  # Need at least 2 points for analysis
+            if len(group_df_resampled) < 2:
                 return None
 
             resampled_df = group_df_resampled.copy()
             
-            # Step 2: Prepare data for sigma calculation (exclude zeros)
+            # Calculate sigma estimate
             non_zero_values = resampled_df[value_col].replace(0, np.nan)
-            
-            # Step 3: Calculate sigma estimate using moving range method
-            # This is a standard statistical process control technique
             sigma_estimate = np.nan
             if len(non_zero_values.dropna()) > 1:
-                # Calculate moving ranges (absolute differences between consecutive points)
                 moving_ranges = non_zero_values.dropna().diff().abs()
-                # Use the standard factor 1.128 for moving range estimation
                 sigma_estimate = (moving_ranges.mean() / 1.128) if len(moving_ranges.dropna()) > 1 else non_zero_values.std(ddof=1)
             
             if pd.isna(sigma_estimate) or sigma_estimate == 0: 
                 return None
 
-            # Step 4: Calculate control chart parameters
-            # Rolling mean provides the center line
+            # Calculate control parameters
             rolling_mean = non_zero_values.rolling(window=rolling_window, min_periods=1).mean()
             resampled_df['rolling_mean'] = rolling_mean.interpolate(method='linear', limit_direction='both')
-            
-            # Control limits are center line ± (std_dev × sigma)
             resampled_df['upper_bound'] = resampled_df['rolling_mean'] + (std_dev * sigma_estimate)
             resampled_df['lower_bound'] = (resampled_df['rolling_mean'] - (std_dev * sigma_estimate)).clip(lower=0)
             
-            # Step 5: Enhanced outlier detection and classification
-            # Track both high and low outliers separately
+            # Enhanced outlier detection
             resampled_df['high_outlier'] = resampled_df.apply(
                 lambda r: r[value_col] if r[value_col] > r['upper_bound'] and r[value_col] != 0 else np.nan,
                 axis=1
@@ -271,9 +251,7 @@ class CheckColumns:
                 axis=1
             )
             
-            # Track extreme outliers - using a much stricter threshold
-            # A point is extreme only if it's more than 5x the distance from mean to control limit
-            # This makes the extreme classification much more selective
+            # Extreme outliers
             resampled_df['extreme_high_outlier'] = resampled_df.apply(
                 lambda r: r[value_col] if (r[value_col] > r['rolling_mean'] + (5 * (r['upper_bound'] - r['rolling_mean']))) else np.nan,
                 axis=1
@@ -284,22 +262,26 @@ class CheckColumns:
                 axis=1
             )
             
-            # Combined outliers for backward compatibility
+            # Combined outliers
             resampled_df['outlier'] = resampled_df.apply(
                 lambda r: r[value_col] if pd.notna(r['high_outlier']) or pd.notna(r['low_outlier']) else np.nan,
                 axis=1
             )
             
-            # Track zero values separately as they may indicate special conditions
+            # Zero values
             resampled_df['zero_value'] = resampled_df.apply(
                 lambda r: r[value_col] if r[value_col] == 0 else np.nan,
                 axis=1
             )
             
-            # Step 6: Generate the visual chart
+            # Generate chart
             chart_data = self.generate_plot(resampled_df.copy(), value_col, date_col, group_key, cut_cols, rolling_window, std_dev, aggregation_period)
             
-            # Clean up matplotlib resources
+            # Add outlier mapping information and aggregation period
+            if chart_data:
+                chart_data['resampled_data'] = resampled_df.to_dict('records')
+                chart_data['aggregation_period'] = aggregation_period
+            
             plt.close('all')
             plt.clf()
             plt.cla()
@@ -339,57 +321,51 @@ class CheckColumns:
         plt.cla()
         plt.close('all')
         
-        # Step 2: Set professional styling and create figure
-        plt.style.use('seaborn-v0_8-whitegrid')  # Professional grid style
-        fig, ax = plt.subplots(figsize=(15, 7))  # Wide format for time series
-        ax.clear()  # Ensure clean axes state
+        plt.style.use('seaborn-v0_8-whitegrid')
+        fig, ax = plt.subplots(figsize=(15, 7))
+        ax.clear()
         
-        # Step 3: Calculate dynamic y-axis limits including outliers
+        # Calculate dynamic y-axis limits
         all_values = pd.concat([
             plot_df[value_col],
             plot_df['upper_bound'],
-            plot_df['lower_bound'].replace(0, np.nan)  # Exclude artificial zero lower bounds
+            plot_df['lower_bound'].replace(0, np.nan)
         ]).dropna()
         
         if len(all_values) > 0:
             y_min = all_values.min()
             y_max = all_values.max()
             y_range = y_max - y_min
-            # Add padding to ensure all points are visible
-            y_padding = y_range * 0.1  # 10% padding
-            y_min = max(0, y_min - y_padding)  # Don't go below 0
+            y_padding = y_range * 0.1
+            y_min = max(0, y_min - y_padding)
             y_max = y_max + y_padding
             ax.set_ylim(y_min, y_max)
         
-        # Main data line with markers
+        # Plot data
         ax.plot(plot_df[date_col], plot_df[value_col], 
                marker='o', linestyle='-', color='blue', 
                label='Actual', markersize=4)
         
-        # Rolling mean (center line)
         ax.plot(plot_df[date_col], plot_df['rolling_mean'], 
                color='green', linestyle='-', linewidth=2, 
                label=f'{rolling_window}-period Rolling Mean')
         
-        # Control limits (upper and lower bounds)
         ax.plot(plot_df[date_col], plot_df['upper_bound'], 
                color='red', linestyle='--', linewidth=1, 
                label=f'±{std_dev}σ Control Limit')
         ax.plot(plot_df[date_col], plot_df['lower_bound'], 
                color='red', linestyle='--', linewidth=1)
         
-        # Control zone shading
         ax.fill_between(plot_df[date_col], plot_df['lower_bound'], plot_df['upper_bound'], 
                        color='gray', alpha=0.15, label='Control Zone')
         
-        # Step 4: Highlight different types of outliers and special points
+        # Highlight outliers
         high_outliers_mask = plot_df['high_outlier'].notna()
         low_outliers_mask = plot_df['low_outlier'].notna()
         extreme_high_mask = plot_df['extreme_high_outlier'].notna()
         extreme_low_mask = plot_df['extreme_low_outlier'].notna()
         zero_mask = plot_df['zero_value'].notna()
         
-        # Regular outliers (outside control limits)
         regular_outliers_mask = ((high_outliers_mask | low_outliers_mask) & 
                                ~(extreme_high_mask | extreme_low_mask))
         if regular_outliers_mask.any():
@@ -399,7 +375,6 @@ class CheckColumns:
                       color='yellow', s=80, zorder=5, alpha=0.6,
                       label=f'Regular Outliers ({regular_outliers_mask.sum()})')
         
-        # Extreme high outliers
         if extreme_high_mask.any():
             ax.scatter(plot_df.loc[extreme_high_mask, date_col],
                       plot_df.loc[extreme_high_mask, 'extreme_high_outlier'],
@@ -407,7 +382,6 @@ class CheckColumns:
                       edgecolors='red', linewidth=1,
                       label=f'Severe High Outliers ({extreme_high_mask.sum()})')
             
-        # Extreme low outliers
         if extreme_low_mask.any():
             ax.scatter(plot_df.loc[extreme_low_mask, date_col],
                       plot_df.loc[extreme_low_mask, 'extreme_low_outlier'],
@@ -415,17 +389,15 @@ class CheckColumns:
                       edgecolors='purple', linewidth=1,
                       label=f'Severe Low Outliers ({extreme_low_mask.sum()})')
         
-        # Zero values (may indicate special conditions)
         if zero_mask.any():
             ax.scatter(plot_df.loc[zero_mask, date_col],
                       plot_df.loc[zero_mask, 'zero_value'],
                       color='orange', s=50, zorder=5,
                       label=f'Zero Values ({zero_mask.sum()})')
         
-        # Step 5: Create descriptive titles and labels
+        # Create title
         title_add, group_name = "", "All Data"
         if cut_cols and group_key is not None:
-            # Handle both single and multiple grouping columns
             if isinstance(group_key, tuple):
                 group_details = list(zip(cut_cols, group_key))
             else:
@@ -433,49 +405,41 @@ class CheckColumns:
             title_add = " - " + ", ".join(f"{col}={val}" for col, val in group_details)
             group_name = title_add.replace(" - ", "")
         
-        # Map aggregation codes to readable names
         agg_map = {'D': 'Daily', 'W': 'Weekly', 'M': 'Monthly', 'Y': 'Yearly'}
         
-        # Set comprehensive title with analysis parameters
         ax.set_title(f"MSD Control Chart for {value_col}{title_add}\n"
                     f"({agg_map.get(aggregation_period, '')} Aggregation, "
                     f"{rolling_window}-period rolling window)", 
                     fontsize=14, weight='bold')
         
-        # Set axis labels
         ax.set_xlabel(f'Time ({agg_map.get(aggregation_period, "")})', fontsize=12)
         ax.set_ylabel(value_col, fontsize=12)
         
-        # Step 6: Apply professional formatting
-        plt.xticks(rotation=30, ha="right")  # Rotate date labels for readability
-        plt.tight_layout()  # Optimize spacing
-        ax.legend(loc='best')  # Add legend in optimal position
+        plt.xticks(rotation=30, ha="right")
+        plt.tight_layout()
+        ax.legend(loc='best')
         
-        # Step 7: Save chart to memory buffer
+        # Save chart
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight')
         
-        # Step 8: Clean up matplotlib resources
         plt.close(fig)
         plt.clf()
         plt.cla()
         
-        # Step 9: Calculate comprehensive summary statistics
+        # Calculate statistics
         total_points = len(plot_df)
         half_point = max(1, total_points // 2)
         
-        # Calculate outlier statistics for different categories
         total_outliers = int((high_outliers_mask | low_outliers_mask).sum())
         total_extreme_outliers = int((extreme_high_mask | extreme_low_mask).sum())
         recent_outliers = int((high_outliers_mask | low_outliers_mask).iloc[half_point:].sum())
         recent_extreme_outliers = int((extreme_high_mask | extreme_low_mask).iloc[half_point:].sum())
         
-        # Get current axis limits to determine off-scale points
         y_min, y_max = ax.get_ylim()
         off_scale_high = int(sum(plot_df[value_col] > y_max))
         off_scale_low = int(sum((plot_df[value_col] < y_min) & (plot_df[value_col] != 0)))
         
-        # Calculate full outlier statistics, including those that might be outside visible range
         all_outliers = {
             'total': total_outliers,
             'high': int(high_outliers_mask.sum()),
@@ -497,15 +461,14 @@ class CheckColumns:
             }
         }
         
-        # Create comprehensive chart data package with enhanced outlier information
         chart_data = {
-            'image': base64.b64encode(img_buffer.getvalue()).decode(),  # Base64 encoded image
+            'image': base64.b64encode(img_buffer.getvalue()).decode(),
             'title': f"Chart for {value_col}{title_add}", 
             'group': group_name, 
             'data_points': total_points,
             'outlier_stats': all_outliers,
-            'outliers': total_outliers,  # For backward compatibility
-            'latter_half_outliers': recent_outliers,  # For backward compatibility
+            'outliers': total_outliers,
+            'latter_half_outliers': recent_outliers,
             'zero_values': int(zero_mask.sum()),
             'statistics': {
                 'mean': float(plot_df[value_col].mean()),
@@ -519,7 +482,6 @@ class CheckColumns:
             }
         }
         
-        # Store raw image buffer for PowerPoint export (not sent in JSON)
         chart_data['_image_buffer'] = img_buffer.getvalue()
         
         return chart_data
@@ -528,20 +490,10 @@ class CheckColumns:
 # GLOBAL SESSION MANAGEMENT
 # ============================================================================
 
-# Global storage for session charts - stores chart data for PowerPoint export
-# Structure: {session_id: [chart_data_1, chart_data_2, ...]}
 session_charts_storage = {}
 
 def cleanup_temp_files(max_age_hours=1):
-    """
-    Clean up temporary files older than specified age to prevent disk space issues.
-    
-    This function automatically removes old session data files to maintain
-    system performance and prevent storage overflow in production environments.
-    
-    Args:
-        max_age_hours (int): Maximum age of files to keep (default: 1 hour)
-    """
+    """Clean up temporary files older than specified age."""
     temp_dir = 'temp_data'
     if not os.path.isdir(temp_dir): 
         return
@@ -552,49 +504,214 @@ def cleanup_temp_files(max_age_hours=1):
         file_path = os.path.join(temp_dir, filename)
         try:
             if os.path.isfile(file_path):
-                # Get file modification time
                 file_age = current_time - datetime.fromtimestamp(os.path.getmtime(file_path))
-                
-                # Remove files older than max_age_hours
                 if file_age > timedelta(hours=max_age_hours):
                     os.remove(file_path)
                     print(f"Cleaned up old temp file: {filename}")
         except Exception as e: 
             print(f"Error cleaning up file {filename}: {e}")
 
-def create_powerpoint_export(charts_data, session_id):
+def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, filters=None):
     """
-    Create a professional PowerPoint presentation from generated charts.
-    
-    This function generates a comprehensive business report with:
-    - Title slide with generation timestamp
-    - Executive summary with key metrics
-    - Individual slides for each chart (ordered by priority)
-    - Statistical summaries and priority indicators
-    
-    Charts are automatically sorted by recent anomaly count to prioritize
-    the most critical findings for business review.
+    Generate Excel file with outlier cells highlighted in yellow.
     
     Args:
-        charts_data (list): List of chart dictionaries with image data
-        session_id (str): Unique session identifier for filename
-        
+        df: Original DataFrame
+        value_col: Column with values to analyze
+        date_col: Column with dates
+        charts_data: List of chart dictionaries with outlier information
+        session_id: Session identifier for output file
+        filters: Applied filters (optional)
+    
     Returns:
-        tuple: (file_path, filename) or (None, None) if creation fails
+        str: Path to generated Excel file
     """
     try:
-        # Step 1: Sort charts by business priority (recent anomalies first)
-        # Recent anomalies are more actionable than historical ones
+        print(f"Starting Excel generation for session {session_id}")
+        
+        # Create copy of original data
+        df_export = df.copy()
+        
+        # Apply same filters that were used for charts
+        if filters:
+            for col, values in filters.items():
+                if col in df_export.columns and values:
+                    df_export = df_export[df_export[col].isin(values)]
+        
+        # Convert columns for analysis
+        df_export[date_col] = pd.to_datetime(df_export[date_col], errors='coerce')
+        df_export[value_col] = pd.to_numeric(df_export[value_col], errors='coerce')
+        
+        # Collect ALL outlier information from charts with proper aggregation period mapping
+        all_outlier_indices = set()
+        
+        for chart in charts_data:
+            if 'resampled_data' in chart:
+                resampled_df = pd.DataFrame(chart['resampled_data'])
+                
+                # Get outlier rows from resampled data
+                outlier_rows = resampled_df[resampled_df['outlier'].notna()]
+                
+                print(f"Chart '{chart.get('title', 'Unknown')}' has {len(outlier_rows)} outlier periods")
+                
+                for _, outlier_row in outlier_rows.iterrows():
+                    outlier_date = pd.to_datetime(outlier_row[date_col])
+                    outlier_value = float(outlier_row[value_col])
+                    
+                    # For each outlier in the aggregated data, find ALL original rows
+                    # that contributed to that aggregated period
+                    
+                    # Determine the aggregation period window
+                    # Weekly aggregation (W) means we need to find all rows in that week
+                    aggregation_period = chart.get('aggregation_period', 'W')
+                    
+                    if aggregation_period == 'W':
+                        # Weekly - find all rows in the same week
+                        week_start = outlier_date - pd.Timedelta(days=outlier_date.dayofweek)
+                        week_end = week_start + pd.Timedelta(days=6)
+                        
+                        matching_indices = df_export[
+                            (df_export[date_col] >= week_start) &
+                            (df_export[date_col] <= week_end)
+                        ].index.tolist()
+                        
+                    elif aggregation_period == 'D':
+                        # Daily - find rows on the same day
+                        matching_indices = df_export[
+                            df_export[date_col].dt.date == outlier_date.date()
+                        ].index.tolist()
+                        
+                    elif aggregation_period == 'M':
+                        # Monthly - find all rows in the same month
+                        matching_indices = df_export[
+                            (df_export[date_col].dt.year == outlier_date.year) &
+                            (df_export[date_col].dt.month == outlier_date.month)
+                        ].index.tolist()
+                        
+                    elif aggregation_period == 'Y':
+                        # Yearly - find all rows in the same year
+                        matching_indices = df_export[
+                            df_export[date_col].dt.year == outlier_date.year
+                        ].index.tolist()
+                    else:
+                        # Fallback to a wider time window
+                        matching_indices = df_export[
+                            (df_export[date_col] >= outlier_date - pd.Timedelta(days=7)) &
+                            (df_export[date_col] <= outlier_date + pd.Timedelta(days=7))
+                        ].index.tolist()
+                    
+                    all_outlier_indices.update(matching_indices)
+                    print(f"  Outlier period {outlier_date.date()} matched {len(matching_indices)} original rows")
+        
+        print(f"Total outlier data points: {len(outlier_rows) if 'outlier_rows' in locals() else 'N/A'}")
+        print(f"Total original rows to highlight: {len(all_outlier_indices)}")
+        
+        # Create output directory
+        os.makedirs('temp_exports', exist_ok=True)
+        output_path = os.path.join('temp_exports', f'outliers_{session_id}.xlsx')
+        
+        # Write DataFrame to Excel
+        df_export.to_excel(output_path, index=False, engine='openpyxl')
+        
+        # Load workbook for styling
+        wb = openpyxl.load_workbook(output_path)
+        ws = wb.active
+        
+        # Define styles
+        yellow_fill = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF', size=11)
+        border = Border(
+            left=Side(style='thin', color='000000'),
+            right=Side(style='thin', color='000000'),
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000')
+        )
+        
+        # Style header row
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = border
+        
+        # Highlight ALL outlier rows
+        for idx in all_outlier_indices:
+            excel_row = idx + 2  # +2 because Excel is 1-indexed and has header row
+            
+            # Highlight the entire row
+            for col in range(1, ws.max_column + 1):
+                cell = ws.cell(row=excel_row, column=col)
+                cell.fill = yellow_fill
+                cell.border = border
+        
+        print(f"Highlighted {len(all_outlier_indices)} rows in Excel")
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
+            
+            for cell in column:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except:
+                    pass
+            
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+        
+        # Freeze header row
+        ws.freeze_panes = 'A2'
+        
+        # Count total outlier periods across all charts
+        total_outlier_periods = 0
+        for chart in charts_data:
+            if 'resampled_data' in chart:
+                resampled_df = pd.DataFrame(chart['resampled_data'])
+                outlier_count = resampled_df['outlier'].notna().sum()
+                total_outlier_periods += outlier_count
+        
+        # Add a summary sheet
+        summary_ws = wb.create_sheet('Outlier Summary', 0)
+        summary_ws['A1'] = 'Outlier Detection Summary'
+        summary_ws['A1'].font = Font(bold=True, size=14)
+        
+        summary_ws['A3'] = 'Total Outlier Periods Found:'
+        summary_ws['B3'] = total_outlier_periods
+        summary_ws['A4'] = 'Rows Highlighted:'
+        summary_ws['B4'] = len(all_outlier_indices)
+        summary_ws['A5'] = 'Generation Date:'
+        summary_ws['B5'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        summary_ws['A7'] = 'Note: Outlier cells are highlighted in yellow on the Data sheet.'
+        summary_ws['A8'] = 'Each outlier period (from aggregated data) may include multiple original data rows.'
+        summary_ws['A7'].font = Font(italic=True)
+        summary_ws['A8'].font = Font(italic=True, size=9)
+        
+        # Save workbook
+        wb.save(output_path)
+        print(f"Excel file saved successfully: {output_path}")
+        
+        return output_path
+        
+    except Exception as e:
+        print(f"Error creating Excel with highlighted outliers: {e}")
+        traceback.print_exc()
+        return None
+
+def create_powerpoint_export(charts_data, session_id):
+    """Create a professional PowerPoint presentation from generated charts."""
+    try:
         sorted_charts = sorted(charts_data, 
                              key=lambda x: x.get('latter_half_outliers', 0), 
                              reverse=True)
         
-        # Step 2: Initialize PowerPoint presentation
         prs = Presentation()
         prs.slide_width = Inches(13.33)
         prs.slide_height = Inches(7.5)
 
-        # --- Define style constants ---
         TITLE_FONT = 'Segoe UI'
         BODY_FONT = 'Segoe UI'
         BLUE = RGBColor(0, 102, 204)
@@ -602,7 +719,6 @@ def create_powerpoint_export(charts_data, session_id):
         DARK_TEXT = RGBColor(40, 40, 40)
         ACCENT = RGBColor(20, 80, 140)
 
-        # --- Helper to set text formatting ---
         def style_textframe(frame, font_size=Pt(14), bold=False, color=DARK_TEXT):
             for p in frame.paragraphs:
                 for run in p.runs:
@@ -611,8 +727,8 @@ def create_powerpoint_export(charts_data, session_id):
                     run.font.bold = bold
                     run.font.color.rgb = color
 
-        # --- 1. Title Slide ---
-        title_slide_layout = prs.slide_layouts[6]  # Blank for custom styling
+        # Title Slide
+        title_slide_layout = prs.slide_layouts[6]
         slide = prs.slides.add_slide(title_slide_layout)
         slide.background.fill.solid()
         slide.background.fill.fore_color.rgb = GRAY_BLUE_BG
@@ -628,7 +744,7 @@ def create_powerpoint_export(charts_data, session_id):
                                f"Total Charts: {len(sorted_charts)}")
         style_textframe(subtitle_frame, Pt(18), False, DARK_TEXT)
 
-        # --- 2. Executive Summary Slide ---
+        # Executive Summary
         layout = prs.slide_layouts[6]
         slide = prs.slides.add_slide(layout)
         slide.background.fill.solid()
@@ -655,24 +771,21 @@ def create_powerpoint_export(charts_data, session_id):
         )
         style_textframe(content_frame, Pt(20), False, DARK_TEXT)
 
-        # --- 3. Individual Chart Slides ---
+        # Individual Chart Slides
         for i, chart in enumerate(sorted_charts, 1):
             slide = prs.slides.add_slide(prs.slide_layouts[6])
             slide.background.fill.solid()
             slide.background.fill.fore_color.rgb = RGBColor(255, 255, 255)
 
-            # Header title
             title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.3), Inches(9), Inches(0.8))
             title_frame = title_box.text_frame
             title_frame.text = f"{i}. {chart.get('title', 'Chart')}"
             style_textframe(title_frame, Pt(26), True, ACCENT)
 
-            # Chart Image (Centered, 75% slide height)
             if '_image_buffer' in chart:
                 img_stream = io.BytesIO(chart['_image_buffer'])
                 slide.shapes.add_picture(img_stream, Inches(0.8), Inches(1.3), Inches(11.8), Inches(4.8))
 
-            # Stats box
             stats_box = slide.shapes.add_textbox(Inches(0.8), Inches(6.2), Inches(11.8), Inches(1.2))
             stats_frame = stats_box.text_frame
 
@@ -692,10 +805,9 @@ def create_powerpoint_export(charts_data, session_id):
             stats_frame.text = stats_text
             style_textframe(stats_frame, Pt(14), False, DARK_TEXT)
 
-            # Priority Tag (if recent anomalies)
             if chart.get('latter_half_outliers', 0) > 0:
                 shape = slide.shapes.add_shape(
-                    autoshape_type_id=1,  # rectangle
+                    autoshape_type_id=1,
                     left=Inches(10.8),
                     top=Inches(0.3),
                     width=Inches(2.3),
@@ -711,7 +823,6 @@ def create_powerpoint_export(charts_data, session_id):
                 text_frame.text = "High Priority Chart"
                 style_textframe(text_frame, Pt(12), True, RGBColor(255, 255, 255))
 
-        # --- Save output ---
         os.makedirs('temp_exports', exist_ok=True)
         ppt_filename = f"DART_Report_{session_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
         ppt_path = os.path.join('temp_exports', ppt_filename)
@@ -760,10 +871,8 @@ def upload_file():
         500: Internal server error
     """
     try:
-        # Step 1: Clean up old temporary files to maintain system performance
         cleanup_temp_files()
         
-        # Step 2: Validate file upload request
         if 'file' not in request.files: 
             return jsonify({'error': 'No file provided'}), 400
         
@@ -771,44 +880,35 @@ def upload_file():
         if file.filename == '': 
             return jsonify({'error': 'No file selected'}), 400
         
-        # Step 3: Parse file based on extension
         filename = file.filename.lower()
         try:
             if filename.endswith('.csv'):
-                # Advanced CSV parsing with encoding detection
                 raw_data = file.read()
                 file.seek(0)
                 
-                # Detect character encoding to handle international characters
                 detected_encoding = chardet.detect(raw_data[:10000])['encoding'] or 'utf-8'
                 
                 try:
-                    # Attempt to detect CSV dialect (delimiter, quoting, etc.)
                     dialect = csv.Sniffer().sniff(raw_data[:4096].decode(detected_encoding))
                     df = pd.read_csv(io.StringIO(raw_data.decode(detected_encoding)), 
                                    sep=dialect.delimiter, low_memory=False)
                 except (csv.Error, UnicodeDecodeError):
-                    # Fallback to standard CSV parsing
                     df = pd.read_csv(io.StringIO(raw_data.decode(detected_encoding)), 
                                    low_memory=False)
                     
             elif filename.endswith(('.xlsx', '.xls')):
-                # Excel file with potential multiple sheets
                 sheet_name = request.form.get('sheet_name')
                 
-                # First, get list of all sheets
                 excel_file = pd.ExcelFile(file, engine='openpyxl')
                 sheet_names = excel_file.sheet_names
                 
                 if len(sheet_names) > 1 and not sheet_name:
-                    # Return the list of sheets if multiple sheets exist and none selected
                     return jsonify({
                         'multiple_sheets': True,
                         'sheet_names': sheet_names,
                         'message': 'Please select a sheet to analyze'
                     }), 200
                 
-                # Use the specified sheet or the first one if only one exists
                 sheet_to_use = sheet_name if sheet_name else sheet_names[0]
                 df = pd.read_excel(excel_file, sheet_name=sheet_to_use, engine='openpyxl')
             else:
@@ -817,36 +917,29 @@ def upload_file():
         except Exception as e:
             return jsonify({'error': f"Failed to parse file. Details: {str(e)}"}), 400
         
-        # Step 4: Validate data content
         if df.empty: 
             return jsonify({'error': 'File is empty or could not be read.'}), 400
         
-        # Step 5: Data quality analysis and cleaning
         initial_rows = len(df)
-        df.dropna(how='all', inplace=True)  # Remove completely empty rows
+        df.dropna(how='all', inplace=True)
         rows_dropped = initial_rows - len(df)
         
-        # Step 6: Column analysis and type inference
         columns_info, filter_options = [], {}
-        sample_df = df.head(100).copy()  # Use sample for performance on large files
+        sample_df = df.head(100).copy()
         
         for col in df.columns:
             dtype = df[col].dtype
             
-            # Determine if column is numeric
             is_numeric = pd.api.types.is_numeric_dtype(dtype)
             
-            # Determine if column contains date-like data
             is_date_like = (pd.api.types.is_datetime64_any_dtype(dtype) or 
                            (pd.to_datetime(sample_df[col], errors='coerce').notna().sum() / len(sample_df) > 0.5 
                             if len(sample_df) > 0 else False))
             
-            # Create filter options for categorical columns (reasonable number of unique values)
             if (not is_numeric and not is_date_like and 
                 df[col].nunique() < 50 and df[col].nunique() > 1):
                 filter_options[col] = sorted(df[col].dropna().unique().tolist())
             
-            # Store column metadata
             columns_info.append({
                 'name': col, 
                 'type': str(dtype), 
@@ -854,12 +947,10 @@ def upload_file():
                 'is_date_like': is_date_like
             })
         
-        # Step 7: Create session and store data
-        session_id = re.sub(r'\W+', '', str(datetime.now().timestamp()))  # Clean session ID
+        session_id = re.sub(r'\W+', '', str(datetime.now().timestamp()))
         os.makedirs('temp_data', exist_ok=True)
-        df.to_pickle(os.path.join('temp_data', f'{session_id}.pkl'))  # Efficient binary storage
+        df.to_pickle(os.path.join('temp_data', f'{session_id}.pkl'))
         
-        # Step 8: Prepare response data
         response_data = {
             'session_id': session_id, 
             'filename': file.filename, 
@@ -870,7 +961,6 @@ def upload_file():
             'quality_report': {'empty_rows_dropped': rows_dropped}
         }
         
-        # Convert NumPy types to ensure JSON serialization compatibility
         return jsonify(convert_numpy_types(response_data))
         
     except Exception as e:
@@ -911,30 +1001,25 @@ def generate_chart_api():
         500: Internal server error
     """
     try:
-        # Step 1: Parse and validate request data
         data = request.get_json()
-        session_id = re.sub(r'\W+', '', data.get('session_id', ''))  # Sanitize session ID
+        session_id = re.sub(r'\W+', '', data.get('session_id', ''))
         value_col, date_col = data.get('value_column'), data.get('date_column')
         
-        # Validate required parameters
         if not all([session_id, value_col, date_col]): 
             return jsonify({'error': 'Missing required parameters'}), 400
         
-        # Step 2: Parse and validate numeric parameters
         try:
             rolling_window = int(data.get('rolling_window', 7))
             std_dev = float(data.get('std_dev', 2))
         except (ValueError, TypeError):
             return jsonify({'error': 'Rolling window and std dev must be numbers.'}), 400
         
-        # Step 3: Load session data
         df_path = os.path.join('temp_data', f'{session_id}.pkl')
         if not os.path.exists(df_path): 
             return jsonify({'error': 'Session expired or invalid.'}), 404
         
         df = pd.read_pickle(df_path)
         
-        # Step 4: Generate control charts
         checker = CheckColumns(df)
         charts_data, report = checker.create_control_chart(
             value_col=value_col, 
@@ -946,72 +1031,104 @@ def generate_chart_api():
             std_dev=std_dev
         )
         
-        # Step 5: Validate chart generation results
         if not charts_data: 
             return jsonify({'error': f"No valid data to generate charts. {report.get('status', '')}"}), 400
         
-        # Step 6: Store charts for PowerPoint export
-        # Keep full chart data (including image buffers) for PPT generation
+        # Store charts for PowerPoint export
         if session_id not in session_charts_storage:
             session_charts_storage[session_id] = []
         session_charts_storage[session_id].extend(charts_data)
         
-        # Step 7: Prepare JSON response (remove binary data)
-        # Remove image buffers from JSON response to avoid serialization issues
+        # Generate Excel file with highlighted outliers
+        excel_path = None
+        try:
+            excel_path = highlight_outliers_excel(
+                df, 
+                value_col, 
+                date_col, 
+                charts_data, 
+                session_id,
+                filters=data.get('filters')
+            )
+            print(f"Excel file generated: {excel_path}")
+        except Exception as e:
+            print(f"Excel generation failed: {e}")
+            traceback.print_exc()
+        
+        # Prepare JSON response
         charts_for_json = []
         for chart in charts_data:
             chart_copy = chart.copy()
             if '_image_buffer' in chart_copy:
-                del chart_copy['_image_buffer']  # Remove binary data for JSON
+                del chart_copy['_image_buffer']
+            if 'resampled_data' in chart_copy:
+                del chart_copy['resampled_data']
+            if 'outlier_dates' in chart_copy:
+                del chart_copy['outlier_dates']
+            if 'outlier_values' in chart_copy:
+                del chart_copy['outlier_values']
             charts_for_json.append(chart_copy)
         
-        # Step 8: Return successful response
-        return jsonify({
+        response_data = {
             'success': True, 
             'charts': convert_numpy_types(charts_for_json), 
             'message': f"Generated {len(charts_data)} chart(s). {report.get('status', '')}"
-        })
+        }
+        
+        # Add Excel download info if generated successfully
+        if excel_path and os.path.exists(excel_path):
+            response_data['excel_file'] = f"outliers_{session_id}.xlsx"
+            response_data['excel_ready'] = True
+        
+        return jsonify(response_data)
         
     except Exception as e:
         traceback.print_exc()
-        return jsonify({'error': f'Error generating chart: {str(e)}'}), 500
+        return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
+
+@app.route('/api/download_excel/<session_id>', methods=['GET'])
+def download_excel(session_id):
+    """Download the Excel file with highlighted outliers."""
+    try:
+        session_id = re.sub(r'\W+', '', session_id)
+        excel_filename = f'outliers_{session_id}.xlsx'  # Internal filename
+        excel_path = os.path.join('temp_exports', excel_filename)
+        
+        if not os.path.exists(excel_path):
+            return jsonify({'error': 'Excel file not found. Please generate charts first.'}), 404
+        
+        # Get custom filename from query parameters if provided
+        custom_filename = request.args.get('filename', excel_filename)
+        if not custom_filename.endswith('.xlsx'):
+            custom_filename += '_outliers.xlsx'
+        
+        return send_file(
+            excel_path,
+            as_attachment=True,
+            download_name=custom_filename,  # Use the custom filename for download
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'error': f'Error downloading Excel: {str(e)}'}), 500
 
 @app.route('/api/export_ppt/<session_id>', methods=['GET'])
 def export_powerpoint(session_id):
-    """
-    Export all charts from a session to a PowerPoint presentation.
-    
-    This endpoint creates a professional business report containing all charts
-    generated in the current session, automatically ordered by priority
-    (charts with recent anomalies first).
-    
-    Expected Request:
-        GET /api/export_ppt/{session_id}
-        
-    Returns:
-        PowerPoint file download or JSON error response
-        
-    Error Codes:
-        404: No charts found for session
-        500: PowerPoint generation failed
-    """
+    """Export all charts to PowerPoint."""
     try:
-        session_id = re.sub(r'\W+', '', session_id)  # Sanitize session ID
+        session_id = re.sub(r'\W+', '', session_id)
         
-        # Step 1: Validate session has charts
         if session_id not in session_charts_storage or not session_charts_storage[session_id]:
             return jsonify({'error': 'No charts found for this session. Generate some charts first.'}), 404
         
         charts_data = session_charts_storage[session_id]
         
-        # Step 2: Generate PowerPoint presentation
         ppt_path, ppt_filename = create_powerpoint_export(charts_data, session_id)
         
-        # Step 3: Validate file creation
         if not ppt_path or not os.path.exists(ppt_path):
             return jsonify({'error': 'Failed to create PowerPoint presentation'}), 500
         
-        # Step 4: Send file to client
         return send_file(
             ppt_path,
             as_attachment=True,
@@ -1038,9 +1155,8 @@ def clear_session_charts(session_id):
         JSON response confirming session clearance
     """
     try:
-        session_id = re.sub(r'\W+', '', session_id)  # Sanitize session ID
+        session_id = re.sub(r'\W+', '', session_id)
         
-        # Remove session data if it exists
         if session_id in session_charts_storage:
             del session_charts_storage[session_id]
             
@@ -1050,22 +1166,12 @@ def clear_session_charts(session_id):
 
 @app.route('/api/health', methods=['GET'])
 def health_check(): 
-    """
-    Health check endpoint for monitoring server status.
-    
-    Returns:
-        JSON response indicating server is operational
-    """
+    """Health check endpoint."""
     return jsonify({'status': 'healthy'})
 
 @app.route('/')
 def serve_frontend(): 
-    """
-    Serve the main frontend HTML file.
-    
-    Returns:
-        HTML file for the web application interface
-    """
+    """Serve the main frontend HTML file."""
     return send_from_directory('.', 'index.html')
 
 # ============================================================================
@@ -1081,7 +1187,6 @@ if __name__ == '__main__':
     """
     # Ensure temporary data directory exists
     os.makedirs('temp_data', exist_ok=True)
+    os.makedirs('temp_exports', exist_ok=True)
     
-    # Start development server
-    # Note: For production deployment, use a proper WSGI server
     app.run(debug=True, host='0.0.0.0', port=5000)

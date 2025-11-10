@@ -33,6 +33,8 @@ class DARTAnalytics {
         // Core application state
         this.sessionId = null;  // Current data session identifier
         this.backendUrl = 'http://localhost:5000/api';  // Backend API base URL
+        this.currentFileName = null; // Store the current file name
+        this.currentSheetName = null; // Store the current sheet name
         
         // User preferences with sensible defaults
         this.userSettings = { 
@@ -84,6 +86,8 @@ class DARTAnalytics {
         
         // Export functionality
         this.exportPptBtn = document.getElementById('export-ppt-btn');
+            // Download Excel button
+            this.downloadExcelBtn = document.getElementById('download-excel-btn');
     }
 
     /**
@@ -115,12 +119,34 @@ class DARTAnalytics {
         // Export functionality
         this.exportPptBtn.addEventListener('click', () => this.exportToPowerPoint());
 
+            // Download Excel event
+            if (this.downloadExcelBtn) {
+                this.downloadExcelBtn.addEventListener('click', () => this.downloadExcelWithOutliers());
+            }
+
         // User settings auto-save (using event delegation for dynamic forms)
         this.chatMessages.addEventListener('change', (e) => {
             if (e.target.matches('#rolling-window-input, #std-dev-input, #aggregation-period-select')) {
                 this.saveUserSettings();
             }
         });
+    }
+    /**
+     * Download the generated Excel file with highlighted outliers for the current session.
+     */
+    downloadExcelWithOutliers() {
+        if (!this.sessionId) {
+            alert('No session found. Please generate a chart first.');
+            return;
+        }
+        const url = `${this.backendUrl}/download_excel/${this.sessionId}`;
+        // Create a hidden link and trigger download
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `outliers_${this.sessionId}.xlsx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
 
@@ -271,6 +297,8 @@ class DARTAnalytics {
             this.sessionId = null;
             this.sessionChartCount = 0;
             this.chartHistory = [];
+            this.currentFileName = null;
+            this.currentSheetName = null;
             this.updateChartHistoryUI();
             this.updateExportButton();
             
@@ -335,15 +363,16 @@ class DARTAnalytics {
                             const sheetResult = await sheetRes.json();
                             
                             if (!sheetRes.ok) throw new Error(sheetResult.error);
-                            this.sessionId = sheetResult.session_id;
-                            loadingMsg.remove();
-                            messageEl.remove();
-                            
-                            if (!sheetResult.columns_info || !Array.isArray(sheetResult.columns_info)) {
-                                throw new Error('Invalid file data structure received');
-                            }
-                            
-                            this.addMessage('', 'bot', { isFileInfo: true, fileInfo: sheetResult });
+            this.sessionId = sheetResult.session_id;
+            // Store original file name after validation
+            this.currentFileName = file.name ? file.name.trim() : null;
+            this.currentSheetName = selectedSheet ? selectedSheet.trim() : null;
+            loadingMsg.remove();
+            messageEl.remove();
+            
+            if (!sheetResult.columns_info || !Array.isArray(sheetResult.columns_info)) {
+                throw new Error('Invalid file data structure received');
+            }                            this.addMessage('', 'bot', { isFileInfo: true, fileInfo: sheetResult });
                         } catch (error) {
                             loadingMsg.remove();
                             this.addMessage(`❌ Error loading sheet: ${error.message}`, 'bot');
@@ -354,6 +383,9 @@ class DARTAnalytics {
             }
             
             this.sessionId = result.session_id;
+            // Store original file name after validation
+            this.currentFileName = file.name ? file.name.trim() : null;
+            this.currentSheetName = null; // No sheet selected for single-sheet files
             msg.remove();
             
             // Ensure we have the required data structure
@@ -505,6 +537,48 @@ class DARTAnalytics {
         }
     }
 
+    /**
+     * Download the generated Excel file with highlighted outliers for the current session.
+     */
+    downloadExcelWithOutliers() {
+        if (!this.sessionId) {
+            alert('No session found. Please generate a chart first.');
+            return;
+        }
+        
+        // Generate the filename based on original file and sheet name
+        let downloadName;
+        // Check if we have a valid filename stored
+        if (this.currentFileName && this.currentFileName.trim()) {
+            // Remove the extension from the original filename and sanitize
+            downloadName = this.currentFileName.replace(/\.[^/.]+$/, '').trim();
+            downloadName = downloadName.replace(/[^a-zA-Z0-9-_]/g, '_'); // Sanitize filename
+            
+            // Add sheet name if it exists
+            if (this.currentSheetName && this.currentSheetName.trim()) {
+                let sheetPart = this.currentSheetName.trim().replace(/[^a-zA-Z0-9-_]/g, '_');
+                downloadName += `_${sheetPart}`;
+            }
+            // Add outliers suffix and extension
+            downloadName += '_outliers.xlsx';
+        } else {
+            // Fallback if no filename is stored
+            downloadName = `outliers_${this.sessionId}.xlsx`;
+        }
+        
+        // Build URL with filename parameter
+        const url = new URL(`${this.backendUrl}/download_excel/${this.sessionId}`);
+        url.searchParams.set('filename', downloadName);
+        
+        const link = document.createElement('a');
+        link.href = url.toString();
+        link.download = downloadName;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
     async handleFormChartGeneration(button) {
         if (!this.sessionId) return this.addMessage('❌ No data session. Please upload a file.', 'bot');
 
@@ -559,6 +633,40 @@ class DARTAnalytics {
             this.sessionChartCount += result.charts.length;
             this.updateExportButton();
             this.addMessage(`✅ ${result.message}`, 'bot');
+
+            // Add download button in chat if Excel file is generated
+            fetch(`${this.backendUrl}/download_excel/${this.sessionId}`, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        // Add a message about the download option
+                        this.addMessage('📊 Your analysis is ready! You can download the Excel file with highlighted outliers.', 'bot');
+
+                        // Create action button element
+                        const actionDiv = document.createElement('div');
+                        actionDiv.className = 'flex justify-start mt-2';
+                        const downloadBtn = document.createElement('button');
+                        downloadBtn.className = 'flex items-center gap-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] text-white px-4 py-2 rounded-lg transition-colors';
+                        downloadBtn.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                            Download Excel with Outliers
+                        `;
+                        downloadBtn.addEventListener('click', () => this.downloadExcelWithOutliers());
+                        actionDiv.appendChild(downloadBtn);
+
+                        // Add the action button to chat
+                        const lastMessage = this.chatMessages.lastElementChild;
+                        if (lastMessage) {
+                            const botMessageContent = lastMessage.querySelector('.max-w-3xl');
+                            if (botMessageContent) {
+                                botMessageContent.appendChild(actionDiv);
+                            }
+                        }
+                    }
+                })
+                .catch(error => console.error('Error checking Excel file:', error));
+
         } catch (error) {
             msg.remove();
             this.addMessage(`❌ Error generating charts: ${error.message}`, 'bot');
@@ -660,6 +768,7 @@ class DARTAnalytics {
         this.sessionId = null; 
         this.chartHistory = []; 
         this.sessionChartCount = 0;
+        // Preserve currentFileName and currentSheetName for Excel downloads
         this.updateChartHistoryUI(); 
         this.updateExportButton();
         this.chatInput.focus();
