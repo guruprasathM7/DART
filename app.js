@@ -412,6 +412,11 @@ class DARTAnalytics {
     }
     
     createChartHtml(chartData) {
+        // Helper to safely format numbers or show 'N/A'
+        function safeFormat(val, digits = 2) {
+            if (val === null || val === undefined || isNaN(val)) return 'N/A';
+            return Number(val).toFixed(digits);
+        }
         const stats = chartData.outlier_stats || {
             total: chartData.outliers,
             high: 0,
@@ -435,7 +440,7 @@ class DARTAnalytics {
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Mean Value</div>
-                        <div class="stat-value">${chartData.statistics.mean.toFixed(2)}</div>
+                        <div class="stat-value">${safeFormat(chartData.statistics.mean, 2)}</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">Zero Values</div>
@@ -444,7 +449,7 @@ class DARTAnalytics {
                     <div class="stat-box">
                         <div class="stat-label">Value Range</div>
                         <div class="stat-value text-xs">
-                            ${chartData.statistics.min.toFixed(1)} - ${chartData.statistics.max.toFixed(1)}
+                            ${safeFormat(chartData.statistics.min, 1)} - ${safeFormat(chartData.statistics.max, 1)}
                         </div>
                     </div>
                 </div>
@@ -459,9 +464,12 @@ class DARTAnalytics {
                             <div class="text-[var(--text-primary)] font-medium">Total Outliers</div>
                             <div class="text-2xl font-bold text-[var(--accent-primary)]">${stats.total}</div>
                         </div>
-                        <div class="mt-1 text-xs text-[var(--text-secondary)]">
+                        <div class="mt-4 text-xs text-[var(--text-secondary)]">
+                            Control Limits: ${safeFormat(chartData.statistics.control_limits.lower, 2)} - ${safeFormat(chartData.statistics.control_limits.upper, 2)}
+                        </div>
+                        <div class="mt-2 text-xs flex flex-wrap gap-3 text-[var(--text-secondary)]">
                             <span class="inline-flex items-center">
-                                <span class="w-2 h-2 rounded-full bg-yellow-400 mr-1"></span>
+                                <span class="w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>
                                 ${stats.high + stats.low} outside control limits
                             </span>
                             <span class="mx-2">•</span>
@@ -479,7 +487,7 @@ class DARTAnalytics {
                                 ${stats.off_scale.low > 0 ? `${stats.off_scale.low} below ${stats.visible_range.min.toFixed(1)}` : ''}
                             </div>
                             <div class="mt-1 text-[var(--text-secondary)]">
-                                Full data range: ${stats.min_value.toFixed(1)} - ${stats.max_value.toFixed(1)}
+                                Full data range: ${safeFormat(stats.min_value, 1)} - ${safeFormat(stats.max_value, 1)}
                             </div>
                         </div>
                         ` : ''}
@@ -515,10 +523,10 @@ class DARTAnalytics {
                     ` : ''}
                 </div>
                 
-                <!-- Control Limits -->
+                <!-- Control Limits (Fixed) -->
                 ${chartData.statistics.control_limits ? `
                 <div class="mt-4 text-xs text-[var(--text-secondary)]">
-                    Control Limits: ${chartData.statistics.control_limits.lower.toFixed(2)} - ${chartData.statistics.control_limits.upper.toFixed(2)}
+                    Control Limits: ${safeFormat(chartData.statistics.control_limits.lower, 2)} - ${safeFormat(chartData.statistics.control_limits.upper, 2)}
                 </div>
                 ` : ''}
             </div>`;

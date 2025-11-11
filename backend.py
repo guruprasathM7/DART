@@ -461,6 +461,15 @@ class CheckColumns:
             }
         }
         
+        def safe_float(val):
+            try:
+                f = float(val)
+                if pd.isna(f):
+                    return None
+                return f
+            except Exception:
+                return None
+
         chart_data = {
             'image': base64.b64encode(img_buffer.getvalue()).decode(),
             'title': f"Chart for {value_col}{title_add}", 
@@ -471,19 +480,19 @@ class CheckColumns:
             'latter_half_outliers': recent_outliers,
             'zero_values': int(zero_mask.sum()),
             'statistics': {
-                'mean': float(plot_df[value_col].mean()),
-                'std': float(plot_df[value_col].std()),
-                'min': float(plot_df[value_col].min()),
-                'max': float(plot_df[value_col].max()),
+                'mean': safe_float(plot_df[value_col].mean()),
+                'std': safe_float(plot_df[value_col].std()),
+                'min': safe_float(plot_df[value_col].min()),
+                'max': safe_float(plot_df[value_col].max()),
                 'control_limits': {
-                    'upper': float(plot_df['upper_bound'].mean()),
-                    'lower': float(plot_df['lower_bound'].replace(0, np.nan).mean())
+                    'upper': safe_float(plot_df['upper_bound'].mean()),
+                    'lower': safe_float(plot_df['lower_bound'].replace(0, np.nan).mean())
                 }
             }
         }
-        
+
         chart_data['_image_buffer'] = img_buffer.getvalue()
-        
+
         return chart_data
 
 # ============================================================================
