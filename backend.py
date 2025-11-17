@@ -533,7 +533,7 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
         filters: Applied filters (optional)
     
     Returns:
-        str: Path to generated Excel file
+        tuple: (Path to generated Excel file, filename only)
     """
     try:
         print(f"Starting Excel generation for session {session_id}")
@@ -617,7 +617,12 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
         
         # Create output directory
         os.makedirs('temp_exports', exist_ok=True)
-        output_path = os.path.join('temp_exports', f'outliers_{session_id}.xlsx')
+        
+        # Generate unique filename with timestamp to avoid overwriting
+        import time
+        timestamp = int(time.time() * 1000)  # Milliseconds for uniqueness
+        excel_filename = f'outliers_{session_id}_{timestamp}.xlsx'
+        output_path = os.path.join('temp_exports', excel_filename)
         
         # Write DataFrame to Excel
         df_export.to_excel(output_path, index=False, engine='openpyxl')
@@ -703,12 +708,12 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
         wb.save(output_path)
         print(f"Excel file saved successfully: {output_path}")
         
-        return output_path
+        return output_path, excel_filename
         
     except Exception as e:
         print(f"Error creating Excel with highlighted outliers: {e}")
         traceback.print_exc()
-        return None
+        return None, None
 
 def create_powerpoint_export(charts_data, session_id):
     """Create a professional PowerPoint presentation from generated charts."""
@@ -1050,8 +1055,9 @@ def generate_chart_api():
         
         # Generate Excel file with highlighted outliers
         excel_path = None
+        excel_filename = None
         try:
-            excel_path = highlight_outliers_excel(
+            excel_path, excel_filename = highlight_outliers_excel(
                 df, 
                 value_col, 
                 date_col, 
@@ -1085,8 +1091,8 @@ def generate_chart_api():
         }
         
         # Add Excel download info if generated successfully
-        if excel_path and os.path.exists(excel_path):
-            response_data['excel_file'] = f"outliers_{session_id}.xlsx"
+        if excel_path and excel_filename and os.path.exists(excel_path):
+            response_data['excel_file'] = excel_filename
             response_data['excel_ready'] = True
         
         return jsonify(response_data)
@@ -1095,12 +1101,17 @@ def generate_chart_api():
         traceback.print_exc()
         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
 
-@app.route('/api/download_excel/<session_id>', methods=['GET'])
-def download_excel(session_id):
+@app.route('/api/download_excel/<excel_filename>', methods=['GET'])
+def download_excel(excel_filename):
     """Download the Excel file with highlighted outliers."""
     try:
-        session_id = re.sub(r'\W+', '', session_id)
-        excel_filename = f'outliers_{session_id}.xlsx'  # Internal filename
+        # Sanitize the filename to prevent directory traversal
+        excel_filename = os.path.basename(excel_filename)
+        
+        # Ensure it's a valid Excel filename pattern
+        if not excel_filename.startswith('outliers_') or not excel_filename.endswith('.xlsx'):
+            return jsonify({'error': 'Invalid Excel filename.'}), 400
+        
         excel_path = os.path.join('temp_exports', excel_filename)
         
         if not os.path.exists(excel_path):

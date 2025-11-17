@@ -36,6 +36,7 @@ class DARTAnalytics {
         this.currentFileName = null; // Store the current file name
         this.currentSheetName = null; // Store the current sheet name
         this.lastFileInfo = null; // Store last file info for re-analysis
+        this.excelFiles = [];  // Store all Excel files generated in this session
         
         // User preferences with sensible defaults
         this.userSettings = { 
@@ -120,9 +121,17 @@ class DARTAnalytics {
         // Export functionality
         this.exportPptBtn.addEventListener('click', () => this.exportToPowerPoint());
 
-            // Download Excel event
+            // Download Excel event - downloads the most recent Excel file
             if (this.downloadExcelBtn) {
-                this.downloadExcelBtn.addEventListener('click', () => this.downloadExcelWithOutliers());
+                this.downloadExcelBtn.addEventListener('click', () => {
+                    if (this.excelFiles.length > 0) {
+                        // Download the most recent Excel file
+                        const mostRecentExcel = this.excelFiles[this.excelFiles.length - 1];
+                        this.downloadSpecificExcel(mostRecentExcel);
+                    } else {
+                        alert('No Excel file available. Please generate a chart first.');
+                    }
+                });
             }
 
         // User settings auto-save (using event delegation for dynamic forms)
@@ -150,15 +159,17 @@ class DARTAnalytics {
     }
 
     /**
-     * Download the generated Excel file with highlighted outliers for the current session.
+     * Download a specific Excel file with highlighted outliers.
+     * 
+     * @param {string} excelFilename - The specific Excel filename to download
      */
-    downloadExcelWithOutliers() {
-        if (!this.sessionId) {
-            alert('No session found. Please generate a chart first.');
+    downloadSpecificExcel(excelFilename) {
+        if (!excelFilename) {
+            alert('No Excel file available. Please generate a chart first.');
             return;
         }
         
-        // Generate the filename based on original file and sheet name
+        // Generate the download filename based on original file and sheet name
         let downloadName;
         // Check if we have a valid filename stored
         if (this.currentFileName && this.currentFileName.trim()) {
@@ -175,11 +186,11 @@ class DARTAnalytics {
             downloadName += '_outliers.xlsx';
         } else {
             // Fallback if no filename is stored
-            downloadName = `outliers_${this.sessionId}.xlsx`;
+            downloadName = excelFilename;
         }
         
-        // Build URL with filename parameter
-        const url = new URL(`${this.backendUrl}/download_excel/${this.sessionId}`);
+        // Build URL with the specific Excel filename
+        const url = new URL(`${this.backendUrl}/download_excel/${excelFilename}`);
         url.searchParams.set('filename', downloadName);
         
         const link = document.createElement('a');
@@ -655,51 +666,55 @@ class DARTAnalytics {
             this.updateExportButton();
             this.addMessage(`✅ ${result.message}`, 'bot');
 
-            // Add download and re-analyze buttons
-            fetch(`${this.backendUrl}/download_excel/${this.sessionId}`, { method: 'HEAD' })
-                .then(response => {
-                    if (response.ok) {
-                        // Add a message about the download option
-                        this.addMessage('📊 Your analysis is ready! You can download the Excel file with highlighted outliers.', 'bot');
-                        // Create action buttons container
-                        const actionDiv = document.createElement('div');
-                        actionDiv.className = 'flex flex-wrap gap-3 justify-start mt-2';
-                       
-                        // Download Excel button
-                        const downloadBtn = document.createElement('button');
-                        downloadBtn.className = 'flex items-center gap-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] text-white px-4 py-2 rounded-lg transition-colors';
-                        downloadBtn.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-                            </svg>
-                            Download Excel
-                        `;
-                        downloadBtn.addEventListener('click', () => this.downloadExcelWithOutliers());
-                       
-                        // Analyze with Different Parameters button
-                        const reAnalyzeBtn = document.createElement('button');
-                        reAnalyzeBtn.className = 'flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors';
-                        reAnalyzeBtn.innerHTML = `
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                            </svg>
-                            Analyze with Different Parameters
-                        `;
-                        reAnalyzeBtn.addEventListener('click', () => this.showAnalysisForm());
-                       
-                        actionDiv.appendChild(downloadBtn);
-                        actionDiv.appendChild(reAnalyzeBtn);
-                        // Add the action buttons to chat
-                        const lastMessage = this.chatMessages.lastElementChild;
-                        if (lastMessage) {
-                            const botMessageContent = lastMessage.querySelector('.max-w-3xl');
-                            if (botMessageContent) {
-                                botMessageContent.appendChild(actionDiv);
-                            }
-                        }
+            // Add download and re-analyze buttons if Excel is ready
+            // Store the Excel filename for this specific analysis
+            const excelFileForThisAnalysis = result.excel_file;
+            
+            // Track all Excel files generated in this session
+            if (excelFileForThisAnalysis) {
+                this.excelFiles.push(excelFileForThisAnalysis);
+            }
+            
+            if (result.excel_ready && excelFileForThisAnalysis) {
+                // Add a message about the download option
+                this.addMessage('📊 Your analysis is ready! You can download the Excel file with highlighted outliers.', 'bot');
+                // Create action buttons container
+                const actionDiv = document.createElement('div');
+                actionDiv.className = 'flex flex-wrap gap-3 justify-start mt-2';
+               
+                // Download Excel button - captures excelFileForThisAnalysis in closure
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'flex items-center gap-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] text-white px-4 py-2 rounded-lg transition-colors';
+                downloadBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                    Download Excel
+                `;
+                downloadBtn.addEventListener('click', () => this.downloadSpecificExcel(excelFileForThisAnalysis));
+               
+                // Analyze with Different Parameters button
+                const reAnalyzeBtn = document.createElement('button');
+                reAnalyzeBtn.className = 'flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors';
+                reAnalyzeBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                    </svg>
+                    Analyze with Different Parameters
+                `;
+                reAnalyzeBtn.addEventListener('click', () => this.showAnalysisForm());
+               
+                actionDiv.appendChild(downloadBtn);
+                actionDiv.appendChild(reAnalyzeBtn);
+                // Add the action buttons to chat
+                const lastMessage = this.chatMessages.lastElementChild;
+                if (lastMessage) {
+                    const botMessageContent = lastMessage.querySelector('.max-w-3xl');
+                    if (botMessageContent) {
+                        botMessageContent.appendChild(actionDiv);
                     }
-                })
-                .catch(error => console.error('Error checking Excel file:', error));
+                }
+            }
 
         } catch (error) {
             msg.remove();
@@ -794,6 +809,7 @@ class DARTAnalytics {
         this.chartHistory = []; 
         this.sessionChartCount = 0;
         this.lastFileInfo = null;
+        this.excelFiles = [];  // Clear Excel files list
         // Preserve currentFileName and currentSheetName for Excel downloads
         this.updateChartHistoryUI(); 
         this.updateExportButton();
