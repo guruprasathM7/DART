@@ -294,12 +294,33 @@ class DARTAnalytics {
                             </select>
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-[var(--text-primary)] mb-2 block">2. Select Time Series Column</label>
-                            <select name="date-column" class="w-full">
-                                <option value="">-- Select Time Period --</option>
-                                ${dateCols.length > 0 ? `<optgroup label="Suggested">${dateCols.map(c => `<option value="${c}">${c}</option>`).join('')}</optgroup>` : ''}
-                                <optgroup label="All Columns">${allCols.map(c => `<option value="${c}">${c}</option>`).join('')}</optgroup>
-                            </select>
+                            <label class="text-sm font-medium text-[var(--text-primary)] mb-2 block">
+                                2. Select Time Series Column(s)
+                                <span class="text-xs text-[var(--text-muted)] ml-2">(Check multiple to combine)</span>
+                            </label>
+                            <div class="max-h-48 overflow-y-auto border border-[var(--border-color)] rounded-lg p-3 bg-[var(--bg-element-dark)]" id="date-column-checkboxes">
+                                ${dateCols.length > 0 ? `
+                                    <div class="mb-3">
+                                        <p class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Suggested</p>
+                                        ${dateCols.map(c => `
+                                            <label class="flex items-center gap-2 py-1.5 px-2 hover:bg-[var(--bg-element-medium)] rounded cursor-pointer transition-colors">
+                                                <input type="checkbox" name="date-column" value="${c}">
+                                                <span class="text-sm text-[var(--text-primary)]">${c}</span>
+                                            </label>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                                <div>
+                                    <p class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">All Columns</p>
+                                    ${allCols.map(c => `
+                                        <label class="flex items-center gap-2 py-1.5 px-2 hover:bg-[var(--bg-element-medium)] rounded cursor-pointer transition-colors">
+                                            <input type="checkbox" name="date-column" value="${c}">
+                                            <span class="text-sm text-[var(--text-primary)]">${c}</span>
+                                        </label>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <p class="text-xs text-[var(--text-muted)] mt-2">💡 Check multiple columns (e.g., Year + Month) to combine them into a single time series</p>
                         </div>
                         <div>
                             <label class="text-sm font-medium text-[var(--text-primary)] mb-2 block">3. Select Data Cut Column (Optional)</label>
@@ -312,6 +333,7 @@ class DARTAnalytics {
                             <div>
                                 <label class="text-sm text-[var(--text-secondary)] mb-1 block">Aggregation</label>
                                 <select id="aggregation-period-select" class="w-full">
+                                    <option value="NONE" ${this.userSettings.aggregationPeriod === 'NONE' ? 'selected' : ''}>None (Original Data)</option>
                                     <option value="D">Daily</option>
                                     <option value="W" ${this.userSettings.aggregationPeriod === 'W' ? 'selected' : ''}>Weekly</option>
                                     <option value="M" ${this.userSettings.aggregationPeriod === 'M' ? 'selected' : ''}>Monthly</option>
@@ -615,7 +637,12 @@ class DARTAnalytics {
         if (!form) return this.addMessage('❌ Form not found.', 'bot');
 
         const valueColumn = form.querySelector('select[name="value-column"]').value;
-        const dateColumn = form.querySelector('select[name="date-column"]').value;
+        
+        // Handle multiple date column selection from checkboxes
+        const dateColumnCheckboxes = form.querySelectorAll('input[name="date-column"]:checked');
+        const selectedDateColumns = Array.from(dateColumnCheckboxes).map(cb => cb.value);
+        const dateColumn = selectedDateColumns.length === 1 ? selectedDateColumns[0] : selectedDateColumns;
+        
         const cutColumn = form.querySelector('select[name="cut-column"]').value;
         const cutColumns = cutColumn ? [cutColumn] : [];
         
@@ -624,7 +651,9 @@ class DARTAnalytics {
         const stdDev = parseFloat(form.querySelector('#std-dev-input')?.value) || 2;
         const aggregationPeriod = form.querySelector('#aggregation-period-select')?.value || 'W';
         
-        if (!valueColumn || !dateColumn) return this.addMessage('❌ Please select a Value and Time Series column.', 'bot');
+        if (!valueColumn || !dateColumn || (Array.isArray(dateColumn) && dateColumn.length === 0)) {
+            return this.addMessage('❌ Please select a Value and at least one Time Series column.', 'bot');
+        }
 
         // Update user settings with current form values
         this.userSettings.rollingWindow = rollingWindow;
@@ -632,7 +661,8 @@ class DARTAnalytics {
         this.userSettings.aggregationPeriod = aggregationPeriod;
         localStorage.setItem('dartAnalyticsSettings', JSON.stringify(this.userSettings));
 
-        this.addMessage(`🚀 Generating charts for <span class="value-column">${valueColumn}</span> (Rolling Window: ${rollingWindow}, Std Dev: ${stdDev}σ)...`, 'user');
+        const dateColumnDisplay = Array.isArray(dateColumn) ? dateColumn.join(' + ') : dateColumn;
+        this.addMessage(`🚀 Generating charts for <span class="value-column">${valueColumn}</span> over <span class="value-column">${dateColumnDisplay}</span> (Rolling Window: ${rollingWindow}, Std Dev: ${stdDev}σ)...`, 'user');
         const msg = this.addMessage('🔄 Processing your analysis... This may take a moment.', 'bot');
         
         button.disabled = true;

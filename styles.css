@@ -180,39 +180,101 @@ body {
     opacity: 0.7;
 }
 
-.form-checkbox {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--border-color);
-    background-color: var(--bg-element-dark);
-    cursor: pointer;
+.form-checkbox,
+input[type="checkbox"],
+input[name="date-column"] {
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    width: 14px !important;
+    height: 14px !important;
+    min-width: 14px !important;
+    min-height: 14px !important;
+    max-width: 14px !important;
+    max-height: 14px !important;
+    border: 1.5px solid var(--text-muted) !important;
+    background-color: var(--bg-element-medium) !important;
+    cursor: pointer !important;
     transition: all 0.2s;
-    border-radius: 4px;
+    border-radius: 2px !important;
     position: relative;
-    flex-shrink: 0;
+    flex-shrink: 0 !important;
+    margin-right: 8px !important;
+    display: inline-block !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
 }
 
-.form-checkbox:checked {
-    background-color: var(--accent-primary);
-    border-color: var(--accent-primary);
+.form-checkbox:hover,
+input[type="checkbox"]:hover,
+input[name="date-column"]:hover {
+    border-color: var(--accent-primary) !important;
+    background-color: var(--bg-element-dark) !important;
 }
 
-.form-checkbox:checked::after {
-    content: 'Checkmark';
-    color: white;
-    font-size: 13px;
-    font-weight: bold;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+.form-checkbox:checked,
+input[type="checkbox"]:checked,
+input[name="date-column"]:checked {
+    background-color: var(--accent-primary) !important;
+    border-color: var(--accent-primary) !important;
+}
+
+.form-checkbox:checked::after,
+input[type="checkbox"]:checked::after,
+input[name="date-column"]:checked::after {
+    content: '✓' !important;
+    color: white !important;
+    font-size: 10px !important;
+    font-weight: bold !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    line-height: 1 !important;
+}
+
+.form-checkbox:focus,
+input[type="checkbox"]:focus,
+input[name="date-column"]:focus {
+    outline: 2px solid var(--accent-primary) !important;
+    outline-offset: 2px !important;
 }
 
 .column-selection-group {
     max-height: 160px;
     overflow-y: auto;
+}
+
+/* Date column checkbox container */
+#date-column-checkboxes {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) var(--bg-element-dark);
+}
+
+#date-column-checkboxes::-webkit-scrollbar {
+    width: 8px;
+}
+
+#date-column-checkboxes::-webkit-scrollbar-track {
+    background: var(--bg-element-dark);
+    border-radius: 4px;
+}
+
+#date-column-checkboxes::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+#date-column-checkboxes::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+#date-column-checkboxes label {
+    transition: background-color 0.15s ease;
+}
+
+#date-column-checkboxes label:hover {
+    background-color: var(--bg-element-medium);
 }
 
 .stat-box {

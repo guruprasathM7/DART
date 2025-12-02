@@ -121,7 +121,8 @@ class CheckColumns:
         
         Args:
             value_col (str): Column name containing the numeric values to analyze
-            date_col (str): Column name containing date/time information
+            date_col (str or list): Column name(s) containing date/time information
+                                    Can be a single column or list of columns to combine
             cut_cols (list, optional): Columns to group data by (creates separate charts)
             filters (dict, optional): Column filters to apply before analysis
             aggregation_period (str): Time period for data aggregation ('D', 'W', 'M', 'Y')
@@ -148,13 +149,78 @@ class CheckColumns:
         if filtered_df.empty: 
             return [], {"status": "No data remaining after applying filters."}
 
+        # Step 1.5: Handle multiple date columns (combine them)
+        combined_date_col = '_combined_timeseries_'
+        original_date_cols = []
+        
+        if isinstance(date_col, list) and len(date_col) > 1:
+            # Multiple columns selected - need to combine them
+            original_date_cols = date_col.copy()
+            
+            # Verify all columns exist
+            missing_cols = [col for col in date_col if col not in filtered_df.columns]
+            if missing_cols:
+                return [], {"status": f"Error: Columns not found: {', '.join(missing_cols)}"}
+            
+            # Try to combine the columns
+            try:
+                # Create a copy to work with
+                temp_df = filtered_df[date_col].copy()
+                
+                # Check if columns can be combined into a datetime
+                # Strategy 1: Try concatenating as strings and parsing
+                combined_str = temp_df.astype(str).agg(' '.join, axis=1)
+                combined_datetime = pd.to_datetime(combined_str, errors='coerce')
+                
+                # Check success rate
+                success_rate = combined_datetime.notna().sum() / len(combined_datetime)
+                
+                if success_rate > 0.7:  # At least 70% successfully combined
+                    filtered_df[combined_date_col] = combined_datetime
+                    date_col = combined_date_col
+                else:
+                    # Strategy 2: Try numeric combination (e.g., Year + Month)
+                    all_numeric = all(pd.api.types.is_numeric_dtype(temp_df[col]) for col in date_col)
+                    
+                    if all_numeric:
+                        # Combine as concatenated integer (e.g., Year=2023, Month=12 -> 202312)
+                        combined_numeric = temp_df.astype(str).agg(''.join, axis=1).astype(float)
+                        filtered_df[combined_date_col] = combined_numeric
+                        date_col = combined_date_col
+                    else:
+                        return [], {
+                            "status": f"Error: Cannot combine columns {', '.join(original_date_cols)}. "
+                                     f"Only {success_rate*100:.1f}% of values could be combined into valid dates. "
+                                     f"Please ensure columns contain compatible date/time components (e.g., Year + Month, or Date + Time)."
+                        }
+                        
+            except Exception as e:
+                return [], {
+                    "status": f"Error combining date columns {', '.join(original_date_cols)}: {str(e)}. "
+                             f"Please select a single time series column or compatible columns that can be combined."
+                }
+        elif isinstance(date_col, list) and len(date_col) == 1:
+            date_col = date_col[0]  # Single column in list format
+
         # Step 2: Data cleaning and validation
         initial_rows = len(filtered_df)
         clean_df = filtered_df.dropna(subset=[date_col, value_col]).copy()
         
         clean_df[value_col] = pd.to_numeric(clean_df[value_col], errors='coerce')
-        clean_df[date_col] = pd.to_datetime(clean_df[date_col], errors='coerce')
+        
+        # Check if date column is numeric (like week numbers: 12301, 12302, etc.)
+        # If numeric, keep as-is for sorting; otherwise convert to datetime
+        if pd.api.types.is_numeric_dtype(clean_df[date_col]):
+            # Keep numeric time series column as-is (e.g., week numbers)
+            clean_df[date_col] = pd.to_numeric(clean_df[date_col], errors='coerce')
+        else:
+            # Try to convert to datetime for actual date columns
+            clean_df[date_col] = pd.to_datetime(clean_df[date_col], errors='coerce')
+        
         clean_df.dropna(subset=[date_col, value_col], inplace=True)
+        
+        # Sort by time series column to ensure chronological order
+        clean_df = clean_df.sort_values(by=date_col).reset_index(drop=True)
         
         rows_dropped = initial_rows - len(clean_df)
         if clean_df.empty: 
@@ -218,12 +284,27 @@ class CheckColumns:
             # Store original indices for Excel highlighting
             original_indices = group_df.index.tolist()
             
-            # Aggregate data by time period
-            group_df_resampled = group_df.set_index(date_col)[[value_col]].resample(aggregation_period).mean().dropna().reset_index()
-            if len(group_df_resampled) < 2:
+            # Sort data by time series column before processing
+            group_df = group_df.sort_values(by=date_col).reset_index(drop=True)
+            
+            # Check if date column is numeric (like week numbers) - cannot resample numeric columns
+            is_numeric_timeseries = pd.api.types.is_numeric_dtype(group_df[date_col]) and not pd.api.types.is_datetime64_any_dtype(group_df[date_col])
+            
+            # Aggregate data by time period (or use original data if NONE or numeric time series)
+            if aggregation_period == 'NONE' or is_numeric_timeseries:
+                # Use original data without aggregation
+                resampled_df = group_df[[date_col, value_col]].copy()
+                resampled_df = resampled_df.sort_values(by=date_col).reset_index(drop=True)
+            else:
+                # Sort before resampling to ensure chronological order (datetime columns only)
+                group_df_sorted = group_df.sort_values(by=date_col)
+                group_df_resampled = group_df_sorted.set_index(date_col)[[value_col]].resample(aggregation_period).mean().dropna().reset_index()
+                if len(group_df_resampled) < 2:
+                    return None
+                resampled_df = group_df_resampled.copy()
+            
+            if len(resampled_df) < 2:
                 return None
-
-            resampled_df = group_df_resampled.copy()
             
             # Calculate sigma estimate
             non_zero_values = resampled_df[value_col].replace(0, np.nan)
@@ -405,14 +486,18 @@ class CheckColumns:
             title_add = " - " + ", ".join(f"{col}={val}" for col, val in group_details)
             group_name = title_add.replace(" - ", "")
         
-        agg_map = {'D': 'Daily', 'W': 'Weekly', 'M': 'Monthly', 'Y': 'Yearly'}
+        agg_map = {'D': 'Daily', 'W': 'Weekly', 'M': 'Monthly', 'Y': 'Yearly', 'NONE': 'Original Data'}
         
-        ax.set_title(f"MSD Control Chart for {value_col}{title_add}\n"
-                    f"({agg_map.get(aggregation_period, '')} Aggregation, "
-                    f"{rolling_window}-period rolling window)", 
-                    fontsize=14, weight='bold')
+        # Create title based on aggregation type
+        if aggregation_period == 'NONE':
+            title_text = f"MSD Control Chart for {value_col}{title_add}\n(Original Data, {rolling_window}-period rolling window)"
+            xlabel = 'Time (Original Data Points)'
+        else:
+            title_text = f"MSD Control Chart for {value_col}{title_add}\n({agg_map.get(aggregation_period, '')} Aggregation, {rolling_window}-period rolling window)"
+            xlabel = f'Time ({agg_map.get(aggregation_period, "")})'
         
-        ax.set_xlabel(f'Time ({agg_map.get(aggregation_period, "")})', fontsize=12)
+        ax.set_title(title_text, fontsize=14, weight='bold')
+        ax.set_xlabel(xlabel, fontsize=12)
         ax.set_ylabel(value_col, fontsize=12)
         
         plt.xticks(rotation=30, ha="right")
@@ -571,10 +656,17 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
                     # that contributed to that aggregated period
                     
                     # Determine the aggregation period window
-                    # Weekly aggregation (W) means we need to find all rows in that week
+                    # Determine the aggregation period window
                     aggregation_period = chart.get('aggregation_period', 'W')
                     
-                    if aggregation_period == 'W':
+                    if aggregation_period == 'NONE':
+                        # Original data - exact date and value match
+                        matching_indices = df_export[
+                            (df_export[date_col] == outlier_date) &
+                            (df_export[value_col] == outlier_value)
+                        ].index.tolist()
+                        
+                    elif aggregation_period == 'W':
                         # Weekly - find all rows in the same week
                         week_start = outlier_date - pd.Timedelta(days=outlier_date.dayofweek)
                         week_end = week_start + pd.Timedelta(days=6)
@@ -946,9 +1038,18 @@ def upload_file():
             
             is_numeric = pd.api.types.is_numeric_dtype(dtype)
             
+            # Check if column is datetime or can be converted to datetime
             is_date_like = (pd.api.types.is_datetime64_any_dtype(dtype) or 
                            (pd.to_datetime(sample_df[col], errors='coerce').notna().sum() / len(sample_df) > 0.5 
                             if len(sample_df) > 0 else False))
+            
+            # Also mark integer columns as date_like if they could be sequential time series
+            # (e.g., week numbers: 12301, 12302, 12303, or 1, 2, 3, etc.)
+            if is_numeric and not is_date_like and pd.api.types.is_integer_dtype(dtype):
+                unique_count = df[col].nunique()
+                # If column has reasonable number of unique values and appears sequential
+                if 2 <= unique_count <= 1000:
+                    is_date_like = True  # Allow integer columns as time series
             
             if (not is_numeric and not is_date_like and 
                 df[col].nunique() < 50 and df[col].nunique() > 1):
@@ -995,13 +1096,15 @@ def generate_chart_api():
         Body: {
             "session_id": "unique_session_identifier",
             "value_column": "column_name_with_numeric_data",
-            "date_column": "column_name_with_date_data", 
+            "date_column": "column_name_with_date_data" OR ["col1", "col2"], 
             "cut_columns": ["optional_grouping_columns"],
             "filters": {"column": ["filter_values"]},
             "aggregation_period": "W|D|M|Y",
             "rolling_window": 7,
             "std_dev": 2.0
         }
+        Note: date_column can be a single column name (string) or array of column names
+              to combine (e.g., ["Year", "Month"] or ["Date", "Time"])
         
     Returns:
         JSON response with:
