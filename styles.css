@@ -40,6 +40,12 @@ body {
     margin: 0;
     line-height: 1.6;
     font-size: 0.9375rem;
+    overflow-x: hidden;
+}
+
+/* Smooth animations for all elements */
+* {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
 
 /* Custom Scrollbar */
@@ -73,22 +79,39 @@ body {
 }
 
 .message-animate {
-    animation: fadeInUp 0.4s ease-out forwards;
+    animation: fadeInUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(15px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .loading-spinner {
-    border: 2px solid var(--border-color);
-    border-top: 2px solid var(--accent-primary);
+    border: 3px solid var(--border-color);
+    border-top: 3px solid var(--accent-primary);
+    border-right: 3px solid var(--accent-primary);
     border-radius: 50%;
     width: 20px;
     height: 20px;
-    animation: spin 1s linear infinite;
+    animation: spin 0.8s linear infinite;
 }
 
-/* Logo Glow (Hover Only) */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Logo Glow with smooth animation */
 .logo-glow,
 .logo-glow-big {
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     filter: url(#glow-dark);
 }
 
@@ -99,13 +122,105 @@ body {
 
 .logo-glow:hover,
 .logo-glow-big:hover {
-    transform: scale(1.05);
-    filter: url(#glow-dark) brightness(1.3);
+    transform: scale(1.1) rotate(5deg);
+    filter: url(#glow-dark) brightness(1.3) drop-shadow(0 0 10px rgba(23, 134, 180, 0.5));
+    animation: logoPulse 1.5s ease-in-out infinite;
 }
 
 .light-theme .logo-glow:hover,
 .light-theme .logo-glow-big:hover {
-    filter: url(#glow-light) brightness(1.2);
+    filter: url(#glow-light) brightness(1.2) drop-shadow(0 0 10px rgba(23, 134, 180, 0.5));
+}
+
+@keyframes logoPulse {
+    0%, 100% { transform: scale(1.1) rotate(5deg); }
+    50% { transform: scale(1.15) rotate(-5deg); }
+}
+
+/* Sidebar Button Animations */
+#new-conversation-btn,
+#export-ppt-btn {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#new-conversation-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(23, 134, 180, 0.3);
+}
+
+#new-conversation-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+#export-ppt-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(107, 114, 128, 0.2);
+}
+
+#export-ppt-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+}
+
+/* Ripple effect for sidebar buttons */
+#new-conversation-btn::after,
+#export-ppt-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+#new-conversation-btn:active::after,
+#export-ppt-btn:active::after {
+    width: 300px;
+    height: 300px;
+    transition: width 0s, height 0s;
+}
+
+/* Upload Button Animations */
+#file-upload-btn,
+#send-btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#file-upload-btn:hover {
+    transform: scale(1.1) rotate(5deg);
+    background: var(--bg-element-dark);
+}
+
+#file-upload-btn:active {
+    transform: scale(0.95) rotate(0deg);
+}
+
+#send-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(23, 134, 180, 0.4);
+}
+
+#send-btn:active {
+    transform: scale(0.95);
+}
+
+/* Theme Toggle Button */
+button[title="Toggle Theme"] {
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button[title="Toggle Theme"]:hover {
+    transform: rotate(180deg) scale(1.1);
+    background: var(--bg-element-medium);
+}
+
+button[title="Toggle Theme"]:active {
+    transform: rotate(360deg) scale(0.95);
 }
 
 /* Components */
@@ -119,6 +234,23 @@ body {
     border-radius: 0.75rem;
     padding: 1.25rem;
     margin-top: 0.75rem;
+    animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chart-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(23, 134, 180, 0.2);
+    border-color: rgba(23, 134, 180, 0.3);
+}
+
+.chart-container img {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0.5rem;
+}
+
+.chart-container:hover img {
+    transform: scale(1.02);
 }
 
 .hidden { display: none; }
@@ -129,9 +261,29 @@ body {
     border-radius: 0.75rem;
     padding: 1.25rem;
     margin: 0.75rem 0;
+    animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Form Controls */
+.file-info:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(23, 134, 180, 0.2);
+    border-color: rgba(23, 134, 180, 0.3);
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Form Controls with smooth animations */
 #chart-options-form select,
 #chart-options-form input {
     background: var(--bg-element-dark);
@@ -140,8 +292,15 @@ body {
     border-radius: 0.5rem;
     padding: 0.625rem;
     font-size: 0.875rem;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
+}
+
+#chart-options-form select:hover,
+#chart-options-form input:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-element-medium);
+    transform: translateY(-1px);
 }
 
 #chart-options-form select:focus,
@@ -149,29 +308,53 @@ body {
     outline: none;
     border-color: var(--accent-primary);
     background: var(--bg-element-medium);
-    box-shadow: 0 0 0 3px rgba(23, 134, 180, 0.2);
+    box-shadow: 0 0 0 3px rgba(23, 134, 180, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
 }
 
 #generate-chart-btn {
-    background: var(--accent-primary);
+    background: linear-gradient(135deg, var(--accent-primary) 0%, rgba(23, 134, 180, 0.8) 100%);
     color: white;
     font-weight: 600;
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
     font-size: 0.9375rem;
+    position: relative;
+    overflow: hidden;
+    border: none;
+}
+
+#generate-chart-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+#generate-chart-btn:hover::before {
+    left: 100%;
 }
 
 #generate-chart-btn:hover:not(:disabled) {
-    background: var(--accent-primary-hover);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(23, 134, 180, 0.2);
+    background: linear-gradient(135deg, rgba(23, 134, 180, 0.9) 0%, var(--accent-primary) 100%);
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 8px 16px rgba(23, 134, 180, 0.3), 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#generate-chart-btn:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 2px 4px rgba(23, 134, 180, 0.2);
 }
 
 #generate-chart-btn:disabled {
@@ -195,8 +378,8 @@ input[name="date-column"] {
     border: 1.5px solid var(--text-muted) !important;
     background-color: var(--bg-element-medium) !important;
     cursor: pointer !important;
-    transition: all 0.2s;
-    border-radius: 2px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border-radius: 3px !important;
     position: relative;
     flex-shrink: 0 !important;
     margin-right: 8px !important;
@@ -210,13 +393,23 @@ input[type="checkbox"]:hover,
 input[name="date-column"]:hover {
     border-color: var(--accent-primary) !important;
     background-color: var(--bg-element-dark) !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 0 8px rgba(23, 134, 180, 0.3) !important;
 }
 
 .form-checkbox:checked,
 input[type="checkbox"]:checked,
 input[name="date-column"]:checked {
-    background-color: var(--accent-primary) !important;
+    background: linear-gradient(135deg, var(--accent-primary) 0%, rgba(23, 134, 180, 0.85) 100%) !important;
     border-color: var(--accent-primary) !important;
+    transform: scale(1.05) !important;
+    box-shadow: 0 0 12px rgba(23, 134, 180, 0.5) !important;
+    animation: checkPulse 0.4s ease !important;
+}
+
+@keyframes checkPulse {
+    0%, 100% { transform: scale(1.05); }
+    50% { transform: scale(1.15); }
 }
 
 .form-checkbox:checked::after,
@@ -245,14 +438,15 @@ input[name="date-column"]:focus {
     overflow-y: auto;
 }
 
-/* Date column checkbox container */
+/* Date column checkbox container with sleek animations */
 #date-column-checkboxes {
     scrollbar-width: thin;
     scrollbar-color: var(--border-color) var(--bg-element-dark);
+    backdrop-filter: blur(10px);
 }
 
 #date-column-checkboxes::-webkit-scrollbar {
-    width: 8px;
+    width: 6px;
 }
 
 #date-column-checkboxes::-webkit-scrollbar-track {
@@ -261,20 +455,26 @@ input[name="date-column"]:focus {
 }
 
 #date-column-checkboxes::-webkit-scrollbar-thumb {
-    background: var(--border-color);
+    background: linear-gradient(180deg, var(--border-color) 0%, var(--text-muted) 100%);
     border-radius: 4px;
+    transition: all 0.3s ease;
 }
 
 #date-column-checkboxes::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: linear-gradient(180deg, var(--accent-primary) 0%, rgba(23, 134, 180, 0.7) 100%);
+    box-shadow: 0 0 8px rgba(23, 134, 180, 0.5);
 }
 
 #date-column-checkboxes label {
-    transition: background-color 0.15s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-left: 2px solid transparent;
 }
 
 #date-column-checkboxes label:hover {
     background-color: var(--bg-element-medium);
+    border-left-color: var(--accent-primary);
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .stat-box {
@@ -308,4 +508,98 @@ input[name="date-column"]:focus {
     color: #FFFFFF;
     background-color: rgba(23, 134, 180, 1);
     text-decoration-color: #DBEAFE;
+}
+
+/* Chart History Navigation Animations */
+#chart-history li {
+    animation: slideInLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: left;
+}
+
+#chart-history li:nth-child(1) { animation-delay: 0.05s; }
+#chart-history li:nth-child(2) { animation-delay: 0.1s; }
+#chart-history li:nth-child(3) { animation-delay: 0.15s; }
+#chart-history li:nth-child(4) { animation-delay: 0.2s; }
+#chart-history li:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+#chart-history a {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+#chart-history a::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 3px;
+    background: var(--accent-primary);
+    transform: scaleY(0);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#chart-history a:hover::before {
+    transform: scaleY(1);
+}
+
+#chart-history a:hover {
+    transform: translateX(8px);
+    background: rgba(23, 134, 180, 0.1) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#chart-history a:active {
+    transform: translateX(4px) scale(0.98);
+}
+
+/* Enhanced Input and Form Animations */
+#chat-input {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#chat-input:focus {
+    transform: scale(1.01);
+}
+
+#chat-form {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Smooth page load animation */
+body {
+    animation: pageLoadFade 0.5s ease-in;
+}
+
+@keyframes pageLoadFade {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Notification badge pulse */
+@keyframes badgePulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
 }
