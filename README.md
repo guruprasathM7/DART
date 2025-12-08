@@ -1,8 +1,37 @@
-# DART Analytics - MSD Control Chart Generator
+<div align="center">
 
-A professional web application for generating MSD (Moving Standard Deviation) control charts from CSV/Excel data with PowerPoint export functionality.
+# 📊 DART Analytics
+### Professional MSD Control Chart Generator with AI-Powered Insights
+
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![Flask](https://img.shields.io/badge/flask-2.x-green.svg)](https://flask.palletsprojects.com/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-orange.svg)](/.github/workflows/ci-cd.yml)
+[![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)](Dockerfile)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+**Transform your data into actionable insights with enterprise-grade statistical process control**
+
+[🚀 Quick Start](#-quick-start) • [📖 Documentation](#-documentation) • [🎨 Features](#-features) • [🐳 Docker](#-docker-deployment) • [🤝 Contributing](#-contributing)
+
+![DART Analytics Dashboard](https://img.shields.io/badge/status-production%20ready-brightgreen)
+
+</div>
+
+---
 
 ## 🎯 Overview
+
+**DART Analytics** is a comprehensive, enterprise-ready statistical process control (SPC) platform that transforms raw data into actionable business intelligence. Built with modern web technologies and robust statistical foundations, DART makes advanced data analysis accessible to both technical and non-technical users.
+
+### 🌟 Why DART Analytics?
+
+- **🔬 Statistical Rigor**: Built on proven MSD (Moving Standard Deviation) methodology with customizable parameters
+- **🎨 Beautiful UI**: Modern, responsive design with dark/light themes and smooth animations
+- **⚡ Lightning Fast**: Optimized performance with caching and efficient data processing
+- **📊 Enterprise Ready**: Docker support, CI/CD pipelines, comprehensive testing, and monitoring
+- **🔒 Production Grade**: Health checks, error handling, logging, and security best practices
+- **📈 Scalable**: From single users to enterprise deployments with load balancing support
 
 DART Analytics is a comprehensive statistical process control tool that helps organizations monitor data quality and identify anomalies through professional control charts. The application combines advanced statistical analysis with an intuitive web interface to make data analysis accessible to both technical and non-technical users.
 

@@ -1,4 +1,4 @@
-# Python
+# ===== Python =====
 __pycache__/
 *.py[cod]
 *$py.class
@@ -22,42 +22,113 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.pyc
 
-# Virtual Environment
+# ===== Virtual Environment =====
 .venv/
 venv/
 ENV/
 env/
+.virtualenv/
 
-# Temporary files
+# ===== Temporary files =====
 temp_data/
 temp_exports/
 *.pkl
 *.tmp
+*.bak
+*.swp
 
-# Excel/CSV temporary files
+# ===== Excel/CSV temporary files =====
 ~$*.xlsx
 ~$*.xls
 ~$*.csv
+*.xlsm
 
-# IDE
+# ===== IDE & Editors =====
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# ===== OS =====
 .DS_Store
 Thumbs.db
 desktop.ini
+*.lnk
 
-# Logs
+# ===== Logs =====
 *.log
+logs/
+dart_analytics.log
 
-# Environment variables
+# ===== Environment variables =====
 .env
 .env.local
+.env.production
+.env.*.local
 
-# Teams app (if not needed)
+# ===== Testing =====
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+*.cover
+.hypothesis/
+
+# ===== Docker =====
+docker-compose.override.yml
+
+# ===== Database =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== Jupyter Notebook =====
+.ipynb_checkpoints
+*.ipynb
+
+# ===== Documentation =====
+docs/_build/
+site/
+
+# ===== Security =====
+*.pem
+*.key
+*.cert
+*.crt
+
+# ===== Backup files =====
+*.backup
+*.old
+
+# ===== Package files =====
+*.tar.gz
+*.zip
+*.rar
+
+# ===== Teams app (if not needed) =====
 teams-app/
+
+# ===== Node modules (if any) =====
+node_modules/
+package-lock.json
+
+# ===== MacOS =====
+.AppleDouble
+.LSOverride
+
+# ===== Windows =====
+ehthumbs.db
+Desktop.ini
+
+# ===== Project specific =====
+# Add any project-specific files to ignore here

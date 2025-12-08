@@ -47,6 +47,9 @@ import openpyxl
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+# Performance monitoring
+from performance_monitor import monitor
+
 # Suppress matplotlib warnings in production
 warnings.filterwarnings("ignore", "Could not infer format", UserWarning)
 
@@ -1066,6 +1069,11 @@ def upload_file():
         os.makedirs('temp_data', exist_ok=True)
         df.to_pickle(os.path.join('temp_data', f'{session_id}.pkl'))
         
+        # Log upload metrics
+        file_size = len(raw_data) if filename.endswith('.csv') else file.content_length or 0
+        file_type = 'csv' if filename.endswith('.csv') else 'excel'
+        monitor.log_upload(file_size, file_type)
+        
         response_data = {
             'session_id': session_id, 
             'filename': file.filename, 
@@ -1187,6 +1195,10 @@ def generate_chart_api():
                 del chart_copy['outlier_values']
             charts_for_json.append(chart_copy)
         
+        # Log chart generation metrics
+        total_outliers = sum(chart.get('outlier_count', 0) for chart in charts_data)
+        monitor.log_chart_generation('MSD', total_outliers)
+        
         response_data = {
             'success': True, 
             'charts': convert_numpy_types(charts_for_json), 
@@ -1252,6 +1264,9 @@ def export_powerpoint(session_id):
         if not ppt_path or not os.path.exists(ppt_path):
             return jsonify({'error': 'Failed to create PowerPoint presentation'}), 500
         
+        # Log export metrics
+        monitor.log_export('PowerPoint', len(charts_data))
+        
         return send_file(
             ppt_path,
             as_attachment=True,
@@ -1288,9 +1303,53 @@ def clear_session_charts(session_id):
         return jsonify({'error': f'Error clearing session: {str(e)}'}), 500
 
 @app.route('/api/health', methods=['GET'])
-def health_check(): 
-    """Health check endpoint."""
-    return jsonify({'status': 'healthy'})
+def health_check():
+    """
+    Health check endpoint for monitoring.
+    
+    Returns application health status and performance metrics.
+    Useful for load balancers, monitoring systems, and DevOps.
+    
+    Returns:
+        JSON with health status and metrics
+    """
+    try:
+        health_status = monitor.get_health_status()
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'metrics': health_status
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/api/statistics', methods=['GET'])
+def get_statistics():
+    """
+    Get comprehensive usage statistics and analytics.
+    
+    Returns detailed metrics about application usage, performance,
+    and system health. Useful for dashboards and analytics.
+    
+    Returns:
+        JSON with usage statistics
+    """
+    try:
+        stats = monitor.get_statistics()
+        return jsonify({
+            'success': True,
+            'statistics': stats,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/')
 def serve_frontend(): 
