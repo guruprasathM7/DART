@@ -625,6 +625,7 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
     """
     try:
         print(f"Starting Excel generation for session {session_id}")
+        print(f"Date column(s): {date_col}, Type: {type(date_col)}")
         
         # Create copy of original data
         df_export = df.copy()
@@ -635,8 +636,23 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
                 if col in df_export.columns and values:
                     df_export = df_export[df_export[col].isin(values)]
         
-        # Convert columns for analysis
-        df_export[date_col] = pd.to_datetime(df_export[date_col], errors='coerce')
+        # Handle date_col - it might be a list (multi-column) or string (single column)
+        # Create a combined date column for matching
+        is_multi_column = isinstance(date_col, list)
+        
+        if is_multi_column:
+            # Multi-column time series - create combined column
+            print(f"Multi-column date: {date_col}")
+            combined_col_name = '_combined_date_'
+            df_export[combined_col_name] = df_export[date_col].apply(
+                lambda row: '_'.join(row.astype(str).values), axis=1
+            )
+            date_col_for_matching = combined_col_name
+        else:
+            # Single column - convert to datetime
+            df_export[date_col] = pd.to_datetime(df_export[date_col], errors='coerce')
+            date_col_for_matching = date_col
+        
         df_export[value_col] = pd.to_numeric(df_export[value_col], errors='coerce')
         
         # Collect ALL outlier information from charts with proper aggregation period mapping
@@ -652,60 +668,108 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
                 print(f"Chart '{chart.get('title', 'Unknown')}' has {len(outlier_rows)} outlier periods")
                 
                 for _, outlier_row in outlier_rows.iterrows():
-                    outlier_date = pd.to_datetime(outlier_row[date_col])
+                    # Get the date value from the outlier row
+                    # For multi-column, it will be the combined string
+                    # For single column, it will be a datetime
+                    if isinstance(date_col, list):
+                        # Multi-column: use the combined column value
+                        outlier_date_value = outlier_row[date_col_for_matching]
+                    else:
+                        # Single column: convert to datetime
+                        outlier_date_value = pd.to_datetime(outlier_row[date_col])
+                    
                     outlier_value = float(outlier_row[value_col])
                     
                     # For each outlier in the aggregated data, find ALL original rows
                     # that contributed to that aggregated period
                     
                     # Determine the aggregation period window
-                    # Determine the aggregation period window
                     aggregation_period = chart.get('aggregation_period', 'W')
                     
                     if aggregation_period == 'NONE':
-                        # Original data - exact date and value match
-                        matching_indices = df_export[
-                            (df_export[date_col] == outlier_date) &
-                            (df_export[value_col] == outlier_value)
-                        ].index.tolist()
+                        # Original data - exact match
+                        if isinstance(date_col, list):
+                            # Multi-column: match by combined string
+                            matching_indices = df_export[
+                                (df_export[date_col_for_matching] == outlier_date_value) &
+                                (df_export[value_col] == outlier_value)
+                            ].index.tolist()
+                        else:
+                            # Single column: match by datetime
+                            matching_indices = df_export[
+                                (df_export[date_col] == outlier_date_value) &
+                                (df_export[value_col] == outlier_value)
+                            ].index.tolist()
                         
                     elif aggregation_period == 'W':
                         # Weekly - find all rows in the same week
-                        week_start = outlier_date - pd.Timedelta(days=outlier_date.dayofweek)
-                        week_end = week_start + pd.Timedelta(days=6)
-                        
-                        matching_indices = df_export[
-                            (df_export[date_col] >= week_start) &
-                            (df_export[date_col] <= week_end)
-                        ].index.tolist()
+                        if is_multi_column:
+                            # For multi-column, match by exact combined value
+                            matching_indices = df_export[
+                                df_export[date_col_for_matching] == outlier_date_value
+                            ].index.tolist()
+                        else:
+                            week_start = outlier_date_value - pd.Timedelta(days=outlier_date_value.dayofweek)
+                            week_end = week_start + pd.Timedelta(days=6)
+                            
+                            matching_indices = df_export[
+                                (df_export[date_col_for_matching] >= week_start) &
+                                (df_export[date_col_for_matching] <= week_end)
+                            ].index.tolist()
                         
                     elif aggregation_period == 'D':
                         # Daily - find rows on the same day
-                        matching_indices = df_export[
-                            df_export[date_col].dt.date == outlier_date.date()
-                        ].index.tolist()
+                        if is_multi_column:
+                            # For multi-column, match by exact combined value
+                            matching_indices = df_export[
+                                df_export[date_col_for_matching] == outlier_date_value
+                            ].index.tolist()
+                        else:
+                            matching_indices = df_export[
+                                df_export[date_col_for_matching].dt.date == outlier_date_value.date()
+                            ].index.tolist()
                         
                     elif aggregation_period == 'M':
                         # Monthly - find all rows in the same month
-                        matching_indices = df_export[
-                            (df_export[date_col].dt.year == outlier_date.year) &
-                            (df_export[date_col].dt.month == outlier_date.month)
-                        ].index.tolist()
+                        if is_multi_column:
+                            # For multi-column, match by exact combined value
+                            matching_indices = df_export[
+                                df_export[date_col_for_matching] == outlier_date_value
+                            ].index.tolist()
+                        else:
+                            matching_indices = df_export[
+                                (df_export[date_col_for_matching].dt.year == outlier_date_value.year) &
+                                (df_export[date_col_for_matching].dt.month == outlier_date_value.month)
+                            ].index.tolist()
                         
                     elif aggregation_period == 'Y':
                         # Yearly - find all rows in the same year
-                        matching_indices = df_export[
-                            df_export[date_col].dt.year == outlier_date.year
-                        ].index.tolist()
+                        if is_multi_column:
+                            # For multi-column, match by exact combined value
+                            matching_indices = df_export[
+                                df_export[date_col_for_matching] == outlier_date_value
+                            ].index.tolist()
+                        else:
+                            matching_indices = df_export[
+                                df_export[date_col_for_matching].dt.year == outlier_date_value.year
+                            ].index.tolist()
                     else:
                         # Fallback to a wider time window
-                        matching_indices = df_export[
-                            (df_export[date_col] >= outlier_date - pd.Timedelta(days=7)) &
-                            (df_export[date_col] <= outlier_date + pd.Timedelta(days=7))
-                        ].index.tolist()
+                        if is_multi_column:
+                            # For multi-column, match by exact combined value
+                            matching_indices = df_export[
+                                df_export[date_col_for_matching] == outlier_date_value
+                            ].index.tolist()
+                        else:
+                            matching_indices = df_export[
+                                (df_export[date_col_for_matching] >= outlier_date_value - pd.Timedelta(days=7)) &
+                                (df_export[date_col_for_matching] <= outlier_date_value + pd.Timedelta(days=7))
+                            ].index.tolist()
                     
                     all_outlier_indices.update(matching_indices)
-                    print(f"  Outlier period {outlier_date.date()} matched {len(matching_indices)} original rows")
+                    # Format the outlier value for logging
+                    outlier_display = str(outlier_date_value) if is_multi_column else outlier_date_value.date()
+                    print(f"  Outlier period {outlier_display} matched {len(matching_indices)} original rows")
         
         print(f"Total outlier data points: {len(outlier_rows) if 'outlier_rows' in locals() else 'N/A'}")
         print(f"Total original rows to highlight: {len(all_outlier_indices)}")
