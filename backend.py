@@ -962,7 +962,8 @@ def create_powerpoint_export(charts_data, session_id):
             stats_box = slide.shapes.add_textbox(Inches(0.8), Inches(6.2), Inches(11.8), Inches(1.2))
             stats_frame = stats_box.text_frame
 
-            zero_pct = (chart.get('zero_values', 0) / chart.get('data_points', 1)) * 100 if chart.get('data_points', 0) > 0 else 0
+            data_points = chart.get('data_points', 0)
+            zero_pct = (chart.get('zero_values', 0) / data_points) * 100 if data_points > 0 else 0
             stats_text = (
                 f"Statistics:\n"
                 f"Data Points: {chart.get('data_points', 'N/A')} | "

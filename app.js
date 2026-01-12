@@ -561,7 +561,7 @@ class DARTAnalytics {
                         <div class="mt-2 text-xs flex flex-wrap gap-3 text-[var(--text-secondary)]">
                             <span class="inline-flex items-center">
                                 <span class="w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>
-                                ${stats.high + stats.low} outside control limits
+                                ${stats.total} outside control limits
                             </span>
                             <span class="mx-2">•</span>
                             <span class="inline-flex items-center">
@@ -585,10 +585,10 @@ class DARTAnalytics {
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <!-- Regular Outliers (Combined) -->
-                        <div class="stat-box ${(stats.high + stats.low) > 0 ? 'bg-yellow-500/10' : ''}">
+                        <!-- Regular Outliers (Combined) - Excluding Extreme -->
+                        <div class="stat-box ${(stats.total - stats.extreme_high - stats.extreme_low) > 0 ? 'bg-yellow-500/10' : ''}">
                             <div class="stat-label">Regular Outliers</div>
-                            <div class="stat-value text-yellow-400">${stats.high + stats.low}</div>
+                            <div class="stat-value text-yellow-400">${stats.total - stats.extreme_high - stats.extreme_low}</div>
                         </div>
                         
                         <!-- Extreme Outliers -->
