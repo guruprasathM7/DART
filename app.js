@@ -88,8 +88,12 @@ class DARTAnalytics {
         
         // Export functionality
         this.exportPptBtn = document.getElementById('export-ppt-btn');
-            // Download Excel button
-            this.downloadExcelBtn = document.getElementById('download-excel-btn');
+        
+        // Chart comparison
+        this.selectedCharts = new Set();  // Track selected chart IDs
+        
+        // Download Excel button
+        this.downloadExcelBtn = document.getElementById('download-excel-btn');
     }
 
     /**
@@ -515,11 +519,12 @@ class DARTAnalytics {
             extreme_high: 0,
             extreme_low: 0,
             recent_total: chartData.latter_half_outliers,
-            recent_extreme: 0
         };
         
+        const chartId = `chart-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
         return `
-            <div class="chart-container">
+            <div class="chart-container" data-chart-id="${chartId}">
                 <h3 class="font-semibold text-[var(--text-primary)] mb-3">${chartData.title}</h3>
                 <img src="data:image/png;base64,${chartData.image}" alt="${chartData.title}" class="w-full rounded-lg border border-[var(--border-color)]">
                 
@@ -734,8 +739,20 @@ class DARTAnalytics {
                 `;
                 reAnalyzeBtn.addEventListener('click', () => this.showAnalysisForm());
                
+                // Quick Compare button - new feature
+                const quickCompareBtn = document.createElement('button');
+                quickCompareBtn.className = 'flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors';
+                quickCompareBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                    </svg>
+                    Compare Charts
+                `;
+                quickCompareBtn.addEventListener('click', () => this.showChartSelectorModal());
+               
                 actionDiv.appendChild(downloadBtn);
                 actionDiv.appendChild(reAnalyzeBtn);
+                actionDiv.appendChild(quickCompareBtn);
                 // Add the action buttons to chat
                 const lastMessage = this.chatMessages.lastElementChild;
                 if (lastMessage) {
@@ -869,6 +886,472 @@ applyTheme(theme) {
 }
     async checkBackendHealth() {
         try { const res = await fetch(`${this.backendUrl}/health`); if (!res.ok) throw new Error(); console.log('✅ Backend connected'); } catch (error) { this.addMessage('⚠️ Connection to the backend server failed. Please ensure the Python server is running.', 'bot'); }
+    }
+
+    /**
+     * Handle compare checkbox selection
+     */
+    /**
+     * Show chart selector modal for easy multi-selection
+     */
+    showChartSelectorModal() {
+        // Get all chart containers that have valid images
+        const allCharts = Array.from(document.querySelectorAll('[data-chart-id]')).filter(chart => {
+            const chartImg = chart.querySelector('img[src^="data:image"]');
+            return chartImg && chartImg.src && chartImg.src.length > 50; // Ensure valid base64 image
+        });
+        
+        if (allCharts.length < 2) {
+            this.addMessage('⚠️ You need at least 2 charts to compare. Generate more charts first.', 'bot');
+            return;
+        }
+
+        // Create modal
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm';
+        modal.style.animation = 'fadeIn 0.2s ease-out';
+        
+        modal.innerHTML = `
+            <div class="relative max-w-5xl w-full mx-4 bg-[var(--bg-element-dark)] rounded-xl shadow-2xl border-2 border-[var(--accent-primary)]/40 max-h-[90vh] flex flex-col">
+                <!-- Header -->
+                <div class="flex items-center justify-between p-6 border-b-2 border-[var(--border-color)]">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-[var(--text-primary)]">Select Charts to Compare</h3>
+                            <p class="text-sm text-[var(--text-secondary)] mt-0.5">Choose 2 or more charts for side-by-side analysis</p>
+                        </div>
+                    </div>
+                    <button class="close-modal p-2 rounded-lg hover:bg-[var(--bg-element-medium)] text-[var(--text-secondary)] transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Chart Grid -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        ${allCharts.map((chart, index) => {
+                            const chartId = chart.getAttribute('data-chart-id');
+                            const chartImg = chart.querySelector('img[src^="data:image"]');
+                            const chartTitle = chart.querySelector('h3')?.textContent || `Chart ${index + 1}`;
+                            const totalOutliers = chart.querySelector('.text-2xl.font-bold')?.textContent || '0';
+                            const isSelected = this.selectedCharts.has(chartId);
+                            
+                            return `
+                                <div class="chart-selector-item relative bg-[var(--bg-main)] rounded-lg border-2 ${isSelected ? 'border-[var(--accent-primary)] ring-2 ring-[var(--accent-primary)]/30' : 'border-[var(--border-color)]'} hover:border-[var(--accent-primary)] transition-all duration-200 cursor-pointer" data-chart-id="${chartId}">
+                                    ${isSelected ? `
+                                        <div class="absolute -top-2 -right-2 w-8 h-8 bg-[var(--accent-primary)] rounded-full flex items-center justify-center shadow-lg z-10">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                        </div>
+                                    ` : ''}
+                                    <div class="p-3">
+                                        <div class="text-xs font-semibold text-[var(--text-primary)] mb-2 truncate" title="${chartTitle}">${chartTitle}</div>
+                                        <div class="aspect-video rounded overflow-hidden border border-[var(--border-color)] mb-2 bg-white/5">
+                                            ${chartImg ? `<img src="${chartImg.src}" alt="${chartTitle}" class="w-full h-full object-cover">` : '<div class="w-full h-full flex items-center justify-center text-xs text-[var(--text-secondary)]">No preview</div>'}
+                                        </div>
+                                        <div class="flex items-center justify-between text-xs">
+                                            <span class="text-[var(--text-secondary)]">Outliers:</span>
+                                            <span class="font-bold text-[var(--accent-primary)]">${totalOutliers}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+                
+                <!-- Footer -->
+                <div class="flex items-center justify-between p-6 border-t-2 border-[var(--border-color)] bg-[var(--bg-element-medium)]">
+                    <div class="flex items-center gap-4">
+                        <div class="text-sm text-[var(--text-secondary)]">
+                            <span class="font-semibold text-[var(--text-primary)] selected-count">${this.selectedCharts.size}</span> charts selected
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="select-all text-xs px-3 py-1.5 rounded-md bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-primary-hover)] transition-colors font-medium">
+                                ✓ Select All
+                            </button>
+                            <button class="select-recent text-xs px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium">
+                                ⚡ Recent (Last 3)
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button class="clear-selection px-4 py-2 rounded-lg bg-[var(--bg-element-dark)] text-[var(--text-secondary)] hover:bg-red-500 hover:text-white transition-colors font-medium">
+                            Clear Selection
+                        </button>
+                        <button class="compare-selected px-6 py-2 rounded-lg bg-[var(--accent-primary)] text-white hover:bg-[var(--accent-primary-hover)] transition-colors font-medium shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" ${this.selectedCharts.size < 2 ? 'disabled' : ''}>
+                            Compare Charts
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Event handlers
+        const closeModal = () => {
+            modal.style.animation = 'fadeOut 0.2s ease-out';
+            setTimeout(() => modal.remove(), 200);
+        };
+        
+        // Close button
+        modal.querySelector('.close-modal').addEventListener('click', closeModal);
+        
+        // Click outside to close
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+        
+        // ESC key to close
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        
+        // Chart selection
+        modal.querySelectorAll('.chart-selector-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const chartId = item.getAttribute('data-chart-id');
+                
+                if (this.selectedCharts.has(chartId)) {
+                    this.selectedCharts.delete(chartId);
+                    item.classList.remove('border-[var(--accent-primary)]', 'ring-2', 'ring-[var(--accent-primary)]/30');
+                    item.classList.add('border-[var(--border-color)]');
+                    item.querySelector('.absolute')?.remove();
+                } else {
+                    this.selectedCharts.add(chartId);
+                    item.classList.remove('border-[var(--border-color)]');
+                    item.classList.add('border-[var(--accent-primary)]', 'ring-2', 'ring-[var(--accent-primary)]/30');
+                    item.insertAdjacentHTML('afterbegin', `
+                        <div class="absolute -top-2 -right-2 w-8 h-8 bg-[var(--accent-primary)] rounded-full flex items-center justify-center shadow-lg z-10">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                    `);
+                }
+                
+                // Update count and button state
+                const count = this.selectedCharts.size;
+                modal.querySelector('.selected-count').textContent = count;
+                modal.querySelector('.compare-selected').disabled = count < 2;
+            });
+        });
+        
+        // Clear selection
+        modal.querySelector('.clear-selection').addEventListener('click', () => {
+            this.selectedCharts.clear();
+            modal.querySelectorAll('.chart-selector-item').forEach(item => {
+                item.classList.remove('border-[var(--accent-primary)]', 'ring-2', 'ring-[var(--accent-primary)]/30');
+                item.classList.add('border-[var(--border-color)]');
+                item.querySelector('.absolute')?.remove();
+            });
+            modal.querySelector('.selected-count').textContent = '0';
+            modal.querySelector('.compare-selected').disabled = true;
+        });
+        
+        // Select All
+        modal.querySelector('.select-all').addEventListener('click', () => {
+            const items = modal.querySelectorAll('.chart-selector-item');
+            items.forEach(item => {
+                const chartId = item.getAttribute('data-chart-id');
+                if (!this.selectedCharts.has(chartId)) {
+                    this.selectedCharts.add(chartId);
+                    
+                    item.classList.remove('border-[var(--border-color)]');
+                    item.classList.add('border-[var(--accent-primary)]', 'ring-2', 'ring-[var(--accent-primary)]/30');
+                    if (!item.querySelector('.absolute')) {
+                        item.insertAdjacentHTML('afterbegin', `
+                            <div class="absolute -top-2 -right-2 w-8 h-8 bg-[var(--accent-primary)] rounded-full flex items-center justify-center shadow-lg z-10">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                        `);
+                    }
+                }
+            });
+            
+            const count = this.selectedCharts.size;
+            modal.querySelector('.selected-count').textContent = count;
+            modal.querySelector('.compare-selected').disabled = count < 2;
+        });
+        
+        // Select Recent (Last 3)
+        modal.querySelector('.select-recent').addEventListener('click', () => {
+            // Clear existing selection first
+            this.selectedCharts.clear();
+            modal.querySelectorAll('.chart-selector-item').forEach(item => {
+                item.classList.remove('border-[var(--accent-primary)]', 'ring-2', 'ring-[var(--accent-primary)]/30');
+                item.classList.add('border-[var(--border-color)]');
+                item.querySelector('.absolute')?.remove();
+            });
+            
+            // Select last 3 charts
+            const items = Array.from(modal.querySelectorAll('.chart-selector-item'));
+            const recentItems = items.slice(0, Math.min(3, items.length));
+            
+            recentItems.forEach(item => {
+                const chartId = item.getAttribute('data-chart-id');
+                this.selectedCharts.add(chartId);
+                
+                item.classList.remove('border-[var(--border-color)]');
+                item.classList.add('border-[var(--accent-primary)]', 'ring-2', 'ring-[var(--accent-primary)]/30');
+                item.insertAdjacentHTML('afterbegin', `
+                    <div class="absolute -top-2 -right-2 w-8 h-8 bg-[var(--accent-primary)] rounded-full flex items-center justify-center shadow-lg z-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </div>
+                `);
+            });
+            
+            const count = this.selectedCharts.size;
+            modal.querySelector('.selected-count').textContent = count;
+            modal.querySelector('.compare-selected').disabled = count < 2;
+        });
+        
+        // Compare selected
+        modal.querySelector('.compare-selected').addEventListener('click', () => {
+            closeModal();
+            this.showComparisonView();
+        });
+    }
+
+    /**
+     * Show comparison view with selected charts side-by-side
+     */
+    showComparisonView() {
+        if (this.selectedCharts.size < 2) {
+            this.addMessage('⚠️ Please select at least 2 charts to compare.', 'bot');
+            return;
+        }
+
+        // Get all selected chart containers
+        const chartContainers = Array.from(this.selectedCharts).map(chartId => {
+            return document.querySelector(`[data-chart-id="${chartId}"]`);
+        }).filter(container => container !== null);
+
+        if (chartContainers.length < 2) {
+            this.addMessage('⚠️ Selected charts not found. Please try again.', 'bot');
+            return;
+        }
+
+        // Create comparison view HTML with professional styling
+        const comparisonHtml = `
+            <div class="comparison-view bg-[var(--bg-element-dark)] rounded-xl p-6 border border-[var(--accent-primary)]/40 shadow-xl">
+                <div class="flex items-center justify-between mb-6 pb-4 border-b border-[var(--border-color)]">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-[var(--accent-primary)] flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                                <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                                <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                                <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                                <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-[var(--text-primary)]">Comparative Analysis</h3>
+                            <p class="text-xs text-[var(--text-secondary)]">${chartContainers.length} charts</p>
+                        </div>
+                    </div>
+                    <button class="close-comparison px-4 py-2 rounded-lg bg-[var(--bg-element-medium)] text-[var(--text-secondary)] hover:bg-red-500 hover:text-white transition-all duration-200 flex items-center gap-2 text-sm font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        <span>Close</span>
+                    </button>
+                </div>
+                <div class="grid ${chartContainers.length === 2 ? 'grid-cols-1 md:grid-cols-2' : chartContainers.length === 3 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'} gap-6">
+                    ${chartContainers.map((container, index) => {
+                        // Extract just the chart image (it's directly in the container)
+                        const chartImg = container.querySelector('img[src^="data:image"]');
+                        const chartTitle = container.querySelector('h3')?.textContent || `Chart ${index + 1}`;
+                        
+                        return `
+                            <div class="comparison-chart-card bg-[var(--bg-main)] rounded-lg overflow-hidden border border-[var(--border-color)] hover:border-[var(--accent-primary)] transition-all duration-300 hover:shadow-xl">
+                                <div class="bg-[var(--accent-primary)] px-3 py-2 flex items-center gap-2">
+                                    <div class="w-6 h-6 rounded bg-white/20 flex items-center justify-center text-white text-xs font-bold">${index + 1}</div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-xs font-bold text-white truncate" title="${chartTitle}">${chartTitle}</div>
+                                    </div>
+                                </div>
+                                <div class="p-3">
+                                    <div class="chart-display-wrapper rounded-lg overflow-hidden border border-[var(--border-color)] hover:border-[var(--accent-primary)]/60 transition-all duration-300 cursor-zoom-in mb-3 bg-white/5" data-chart-src="${chartImg ? chartImg.src : ''}" data-chart-title="${chartTitle}">
+                                        ${chartImg ? `<img src="${chartImg.src}" alt="${chartTitle}" class="w-full">` : '<p class="text-xs text-[var(--text-secondary)] p-6 text-center">Chart not available</p>'}
+                                    </div>
+                                    <div class="bg-[var(--bg-element-dark)]/50 rounded-lg p-3 border border-[var(--border-color)]/50">
+                                        ${this.extractChartStats(container)}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+
+        // Add comparison view as a message
+        this.addMessage('', 'bot', {
+            isChart: true,
+            chartHtml: comparisonHtml
+        });
+
+        // Add event listeners for close button and chart clicks
+        setTimeout(() => {
+            const closeBtn = this.chatMessages.querySelector('.close-comparison');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    closeBtn.closest('.message-wrapper').remove();
+                });
+            }
+            
+            // Add click handlers for full-screen chart view
+            const chartWrappers = this.chatMessages.querySelectorAll('.chart-display-wrapper');
+            chartWrappers.forEach(wrapper => {
+                wrapper.addEventListener('click', (e) => {
+                    const chartSrc = wrapper.getAttribute('data-chart-src');
+                    const chartTitle = wrapper.getAttribute('data-chart-title');
+                    if (chartSrc) {
+                        this.openFullScreenChart(chartSrc, chartTitle);
+                    }
+                });
+            });
+        }, 100);
+
+        // Clear selections
+        this.selectedCharts.clear();
+    }
+
+    openFullScreenChart(chartSrc, chartTitle) {
+        // Create full-screen modal overlay
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm';
+        modal.style.animation = 'fadeIn 0.2s ease-out';
+        
+        modal.innerHTML = `
+            <div class="relative max-w-7xl max-h-screen w-full h-full p-8 flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">${chartTitle}</h3>
+                    <button class="close-fullscreen px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-red-500 transition-all duration-200 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                        <span>Close</span>
+                    </button>
+                </div>
+                <div class="flex-1 flex items-center justify-center overflow-auto">
+                    <img src="${chartSrc}" alt="${chartTitle}" class="max-w-full max-h-full object-contain rounded-lg border-2 border-[var(--accent-primary)] shadow-2xl">
+                </div>
+                <div class="mt-4 text-center text-sm text-white/60">
+                    Click anywhere outside the chart or press ESC to close
+                </div>
+            </div>
+        `;
+        
+        // Close on background click
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || e.target.classList.contains('close-fullscreen') || e.target.closest('.close-fullscreen')) {
+                modal.style.animation = 'fadeOut 0.2s ease-out';
+                setTimeout(() => modal.remove(), 200);
+            }
+        });
+        
+        // Close on ESC key
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                modal.style.animation = 'fadeOut 0.2s ease-out';
+                setTimeout(() => modal.remove(), 200);
+                document.removeEventListener('keydown', escHandler);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+        
+        document.body.appendChild(modal);
+    }
+
+    /**
+     * Generate comparison summary statistics
+     */
+    generateComparisonSummary(chartContainers) {
+        return chartContainers.map((container, index) => {
+            const title = container.querySelector('h3')?.textContent || `Chart ${index + 1}`;
+            
+            // Find data points - look for all stat-boxes and find the one with "Data Points" label
+            let dataPoints = 'N/A';
+            const statBoxes = container.querySelectorAll('.stat-box');
+            for (const box of statBoxes) {
+                const label = box.querySelector('.stat-label');
+                if (label && label.textContent.trim() === 'Data Points') {
+                    dataPoints = box.querySelector('.stat-value')?.textContent || 'N/A';
+                    break;
+                }
+            }
+            
+            const totalOutliers = container.querySelector('.text-2xl.font-bold')?.textContent || '0';
+            
+            return `
+                <div class="p-3 bg-[var(--bg-element-dark)] rounded border border-[var(--border-color)]">
+                    <div class="font-medium text-[var(--text-primary)] mb-2 truncate" title="${title}">
+                        ${title.length > 30 ? title.substring(0, 30) + '...' : title}
+                    </div>
+                    <div class="space-y-1 text-[var(--text-secondary)]">
+                        <div>📊 Data: ${dataPoints}</div>
+                        <div>⚠️ Outliers: <span class="text-[var(--accent-primary)] font-semibold">${totalOutliers}</span></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    extractChartStats(container) {
+        // Extract key statistics from a chart container
+        const statBoxes = container.querySelectorAll('.stat-box');
+        const stats = {};
+        
+        statBoxes.forEach(box => {
+            const label = box.querySelector('.stat-label')?.textContent.trim();
+            const value = box.querySelector('.stat-value')?.textContent.trim();
+            if (label && value) {
+                stats[label] = value;
+            }
+        });
+        
+        // Get total outliers count
+        const totalOutliers = container.querySelector('.text-2xl.font-bold')?.textContent || '0';
+        
+        // Build professional minimal stats display
+        return `
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">Data Points</span>
+                    <span class="text-base font-bold text-[var(--text-primary)]">${stats['Data Points'] || 'N/A'}</span>
+                </div>
+                <div class="h-px bg-gradient-to-r from-transparent via-[var(--border-color)] to-transparent"></div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">Total Outliers</span>
+                    <span class="text-lg font-bold text-[var(--accent-primary)]">${totalOutliers}</span>
+                </div>
+            </div>
+        `;
     }
 }
 

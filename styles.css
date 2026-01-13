@@ -603,3 +603,83 @@ body {
         opacity: 0.8;
     }
 }
+
+/* Chart Comparison Styles */
+.comparison-view {
+    animation: slideInFromBottom 0.4s ease-out;
+}
+
+@keyframes slideInFromBottom {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.comparison-chart {
+    animation: fadeInScale 0.3s ease-out;
+    animation-fill-mode: backwards;
+}
+
+.comparison-chart:nth-child(1) { animation-delay: 0.1s; }
+.comparison-chart:nth-child(2) { animation-delay: 0.2s; }
+.comparison-chart:nth-child(3) { animation-delay: 0.3s; }
+.comparison-chart:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.compare-checkbox {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.compare-checkbox:checked {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+#compare-charts-btn {
+    animation: slideInFromRight 0.3s ease-out;
+}
+
+@keyframes slideInFromRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
