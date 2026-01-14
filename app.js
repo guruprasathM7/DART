@@ -32,7 +32,7 @@ class DARTAnalytics {
     constructor() {
         // Core application state
         this.sessionId = null;  // Current data session identifier
-        this.backendUrl = 'http://localhost:5000/api';  // Backend API base URL
+        this.backendUrl = (typeof CONFIG !== 'undefined' ? CONFIG.BACKEND_URL : 'http://localhost:5000/api');  // Backend API base URL
         this.currentFileName = null; // Store the current file name
         this.currentSheetName = null; // Store the current sheet name
         this.lastFileInfo = null; // Store last file info for re-analysis
