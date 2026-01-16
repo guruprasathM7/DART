@@ -12,7 +12,7 @@ const CONFIG = {
     // - Render deployment: 'https://your-app.onrender.com/api'
     // - Heroku deployment: 'https://your-app.herokuapp.com/api'
     // - Railway deployment: 'https://your-app.railway.app/api'
-    BACKEND_URL: 'http://localhost:5000/api',
+    BACKEND_URL: 'https://dart-vz1l.onrender.com/api',
     
     // Application settings
     APP_NAME: 'DART Analytics',
