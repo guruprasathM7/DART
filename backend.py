@@ -1164,6 +1164,134 @@ def upload_file():
         traceback.print_exc()
         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
 
+def analyze_root_causes(df, value_col, date_col, charts_data, filters=None):
+    """
+    Perform root cause analysis to identify factors correlated with outliers.
+    
+    Args:
+        df: Original DataFrame
+        value_col: Value column name
+        date_col: Date column(s)
+        charts_data: Generated charts with outlier information
+        filters: Applied filters
+        
+    Returns:
+        dict: Root cause analysis results
+    """
+    try:
+        root_causes = {
+            'correlations': [],
+            'patterns': [],
+            'insights': []
+        }
+        
+        # Get numeric columns for correlation analysis
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        if value_col in numeric_cols:
+            numeric_cols.remove(value_col)
+        
+        # Calculate correlations with value column
+        if numeric_cols:
+            correlations = []
+            for col in numeric_cols:
+                try:
+                    corr = df[value_col].corr(df[col])
+                    if not np.isnan(corr) and abs(corr) > 0.3:  # Significant correlation threshold
+                        correlations.append({
+                            'factor': col,
+                            'correlation': round(float(corr), 3),
+                            'strength': 'Strong' if abs(corr) > 0.7 else 'Moderate'
+                        })
+                except:
+                    pass
+            
+            # Sort by absolute correlation
+            correlations.sort(key=lambda x: abs(x['correlation']), reverse=True)
+            root_causes['correlations'] = correlations[:5]  # Top 5
+        
+        # Analyze patterns in outliers
+        for chart in charts_data:
+            if 'resampled_data' in chart:
+                resampled_df = pd.DataFrame(chart['resampled_data'])
+                outlier_rows = resampled_df[resampled_df['outlier'].notna()]
+                
+                if len(outlier_rows) > 0:
+                    # Check if outliers cluster in specific periods
+                    if 'date' in outlier_rows.columns:
+                        dates = outlier_rows['date'].tolist()
+                        if len(dates) > 1:
+                            root_causes['patterns'].append({
+                                'type': 'temporal_clustering',
+                                'description': f"Outliers detected in {len(dates)} periods",
+                                'periods': dates[:5]  # First 5 periods
+                            })
+        
+        # Generate insights
+        if root_causes['correlations']:
+            top_corr = root_causes['correlations'][0]
+            root_causes['insights'].append({
+                'type': 'correlation',
+                'message': f"{top_corr['factor']} shows {top_corr['strength'].lower()} correlation ({top_corr['correlation']}) with {value_col}",
+                'impact': 'high' if abs(top_corr['correlation']) > 0.7 else 'medium'
+            })
+        
+        # Analyze outlier distribution
+        total_outliers = sum(len(pd.DataFrame(chart.get('resampled_data', [])).query('outlier.notna()')) for chart in charts_data if 'resampled_data' in chart)
+        extreme_outliers = sum(
+            len(pd.DataFrame(chart.get('resampled_data', [])).query('extreme_high_outlier.notna() or extreme_low_outlier.notna()')) 
+            for chart in charts_data if 'resampled_data' in chart
+        )
+        
+        if total_outliers > 0:
+            outlier_percentage = (extreme_outliers / total_outliers * 100) if total_outliers > 0 else 0
+            if outlier_percentage > 20:
+                root_causes['insights'].append({
+                    'type': 'severity',
+                    'message': f"{extreme_outliers} of {total_outliers} outliers ({outlier_percentage:.1f}%) are extreme deviations, indicating significant process variation",
+                    'impact': 'high'
+                })
+            elif total_outliers > 10:
+                root_causes['insights'].append({
+                    'type': 'frequency',
+                    'message': f"High outlier frequency detected ({total_outliers} total outliers). Consider investigating process stability",
+                    'impact': 'medium'
+                })
+            else:
+                root_causes['insights'].append({
+                    'type': 'stability',
+                    'message': f"Process shows relatively stable behavior with {total_outliers} outliers detected",
+                    'impact': 'low'
+                })
+        
+        # Check for categorical patterns
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+        if isinstance(date_col, list):
+            categorical_cols = [c for c in categorical_cols if c not in date_col]
+        elif isinstance(date_col, str):
+            categorical_cols = [c for c in categorical_cols if c != date_col]
+        
+        # Analyze categorical factors if available
+        if categorical_cols and total_outliers > 0:
+            for col in categorical_cols[:2]:  # Top 2 categorical columns
+                try:
+                    category_counts = df[col].value_counts()
+                    if len(category_counts) <= 10:  # Only if manageable number of categories
+                        root_causes['insights'].append({
+                            'type': 'categorical',
+                            'message': f"Data contains {len(category_counts)} distinct {col} categories. Consider analyzing outliers by {col} segment",
+                            'impact': 'medium'
+                        })
+                        break
+                except:
+                    pass
+            
+        return root_causes
+        
+    except Exception as e:
+        print(f"Root cause analysis error: {e}")
+        traceback.print_exc()
+        return {'correlations': [], 'patterns': [], 'insights': []}
+
 @app.route('/api/generate_chart', methods=['POST'])
 def generate_chart_api():
     """
@@ -1273,10 +1401,15 @@ def generate_chart_api():
         total_outliers = sum(chart.get('outlier_count', 0) for chart in charts_data)
         monitor.log_chart_generation('MSD', total_outliers)
         
+        # Perform root cause analysis
+        # COMMENTED OUT - Feature in development
+        # root_cause_analysis = analyze_root_causes(df, value_col, date_col, charts_data, data.get('filters'))
+        
         response_data = {
             'success': True, 
             'charts': convert_numpy_types(charts_for_json), 
             'message': f"Generated {len(charts_data)} chart(s). {report.get('status', '')}"
+            # 'root_cause_analysis': convert_numpy_types(root_cause_analysis)
         }
         
         # Add Excel download info if generated successfully

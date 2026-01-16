@@ -78,6 +78,7 @@ class DARTAnalytics {
         
         // Navigation and UI control elements
         this.newConversationBtn = document.getElementById('new-conversation-btn');
+        this.dashboardBtn = document.getElementById('dashboard-btn');
         this.themeToggleBtn = document.getElementById('theme-toggle-btn');
         this.menuToggleBtn = document.getElementById('menu-toggle-btn');
         this.closeMenuBtn = document.getElementById('close-menu-btn');
@@ -91,6 +92,9 @@ class DARTAnalytics {
         
         // Chart comparison
         this.selectedCharts = new Set();  // Track selected chart IDs
+        
+        // Dashboard state
+        this.dashboardMode = false;
         
         // Download Excel button
         this.downloadExcelBtn = document.getElementById('download-excel-btn');
@@ -113,6 +117,7 @@ class DARTAnalytics {
         
         // Navigation events
         this.newConversationBtn.addEventListener('click', () => this.startNewConversation());
+        this.dashboardBtn.addEventListener('click', () => this.toggleDashboardView());
         this.themeToggleBtn.addEventListener('click', () => this.toggleTheme());
         
         // Mobile menu events
@@ -509,6 +514,104 @@ class DARTAnalytics {
         this.addMessage("I am an analytics assistant. Please upload a file and use the forms provided to create your analysis.", 'bot');
     }
     
+    createRootCauseAnalysisHtml(analysis) {
+        let html = `
+            <div class="root-cause-analysis bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-xl p-6 border border-blue-500/30 mt-4">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                            <path d="M11 8v6"></path>
+                            <path d="M8 11h6"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-[var(--text-primary)]">🔍 Root Cause Analysis</h3>
+                </div>
+        `;
+        
+        // Display insights
+        if (analysis.insights && analysis.insights.length > 0) {
+            html += `
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold text-blue-400 mb-2">💡 Key Insights</h4>
+                    <div class="space-y-2">
+            `;
+            analysis.insights.forEach(insight => {
+                const impactColor = insight.impact === 'high' ? 'text-red-400' : 'text-yellow-400';
+                html += `
+                    <div class="flex items-start gap-2 text-sm text-[var(--text-secondary)] bg-[var(--bg-element-dark)] p-3 rounded-lg">
+                        <span class="${impactColor}">●</span>
+                        <span>${insight.message}</span>
+                    </div>
+                `;
+            });
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Display correlations
+        if (analysis.correlations && analysis.correlations.length > 0) {
+            html += `
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold text-blue-400 mb-3">📊 Correlated Factors</h4>
+                    <div class="grid grid-cols-1 gap-2">
+            `;
+            analysis.correlations.forEach(corr => {
+                const isPositive = corr.correlation > 0;
+                const barWidth = Math.abs(corr.correlation * 100);
+                const barColor = isPositive ? 'bg-green-500' : 'bg-red-500';
+                html += `
+                    <div class="bg-[var(--bg-element-dark)] p-3 rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-[var(--text-primary)]">${corr.factor}</span>
+                            <span class="text-xs px-2 py-1 rounded ${isPositive ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}">
+                                ${corr.correlation > 0 ? '+' : ''}${corr.correlation}
+                            </span>
+                        </div>
+                        <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                            <div class="${barColor} h-2 transition-all duration-500" style="width: ${barWidth}%"></div>
+                        </div>
+                        <div class="text-xs text-[var(--text-muted)] mt-1">${corr.strength} correlation</div>
+                    </div>
+                `;
+            });
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Display patterns
+        if (analysis.patterns && analysis.patterns.length > 0) {
+            html += `
+                <div>
+                    <h4 class="text-sm font-semibold text-blue-400 mb-2">📅 Detected Patterns</h4>
+                    <div class="space-y-2">
+            `;
+            analysis.patterns.forEach(pattern => {
+                html += `
+                    <div class="text-sm text-[var(--text-secondary)] bg-[var(--bg-element-dark)] p-3 rounded-lg">
+                        <div class="font-medium text-[var(--text-primary)] mb-1">${pattern.description}</div>
+                        ${pattern.periods ? `<div class="text-xs text-[var(--text-muted)] mt-1">Periods: ${pattern.periods.join(', ')}</div>` : ''}
+                    </div>
+                `;
+            });
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += `
+            </div>
+        `;
+        
+        return html;
+    }
+    
     createChartHtml(chartData) {
         // Helper to safely format numbers or show 'N/A'
         function safeFormat(val, digits = 2) {
@@ -708,6 +811,15 @@ class DARTAnalytics {
             this.sessionChartCount += result.charts.length;
             this.updateExportButton();
             
+            // Display root cause analysis if available
+            // COMMENTED OUT - Feature in development
+            /*
+            if (result.root_cause_analysis && (result.root_cause_analysis.correlations.length > 0 || result.root_cause_analysis.insights.length > 0)) {
+                const rootCauseHtml = this.createRootCauseAnalysisHtml(result.root_cause_analysis);
+                this.addMessage(rootCauseHtml, 'bot', { isHtml: true });
+            }
+            */
+            
             // Add success message
             this.addMessage(`✅ ${result.message}`, 'bot');
 
@@ -836,6 +948,252 @@ class DARTAnalytics {
                 `📊 Export ${this.sessionChartCount} Charts to PPT` : 
                 '📊 Export to PowerPoint';
         }
+    }
+
+    toggleDashboardView() {
+        const allCharts = Array.from(document.querySelectorAll('[data-chart-id]'));
+        
+        if (allCharts.length === 0) {
+            this.addMessage('📊 No charts available. Generate some charts first to view the dashboard.', 'bot');
+            return;
+        }
+        
+        this.dashboardMode = !this.dashboardMode;
+        
+        if (this.dashboardMode) {
+            this.showDashboard(allCharts);
+        } else {
+            // Remove dashboard view without reloading
+            const dashboardView = document.querySelector('.dashboard-view');
+            if (dashboardView) {
+                dashboardView.remove();
+            }
+        }
+    }
+
+    showDashboard(charts) {
+        // Calculate stats first
+        let totalOutliers = 0;
+        let totalDataPoints = 0;
+        let criticalCount = 0;
+        let extremeHigh = 0;
+        let extremeLow = 0;
+        
+        // Create dashboard HTML with enhanced design
+        const dashboardHtml = `
+            <div class="dashboard-view fixed inset-0 z-50 bg-[var(--bg-main)] overflow-auto">
+                <!-- Dashboard Header with Gradient -->
+                <div class="sticky top-0 z-10 bg-gradient-to-r from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-[var(--bg-element-dark)] border-b-2 border-[var(--accent-primary)] shadow-lg px-6 py-5">
+                    <div class="flex items-center justify-between max-w-7xl mx-auto">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <svg width="40" height="40" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-glow">
+                                    <use href="#dart-logo" />
+                                </svg>
+                                <div class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            </div>
+                            <div>
+                                <h1 class="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-2">
+                                    📊 Interactive Dashboard
+                                    <span class="text-xs px-2 py-1 bg-[var(--accent-primary)] rounded-full">LIVE</span>
+                                </h1>
+                                <p class="text-sm text-[var(--text-secondary)]">${charts.length} Charts • ${new Date().toLocaleString()}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="window.dartApp.refreshDashboard()" class="px-4 py-2 bg-[var(--bg-element-dark)] hover:bg-[var(--bg-element-medium)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg transition-all flex items-center gap-2 border border-[var(--border-color)]">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                                </svg>
+                                Refresh
+                            </button>
+                            <button onclick="window.dartApp.exportDashboard()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                Export
+                            </button>
+                            <button onclick="window.dartApp.toggleDashboardView()" class="px-4 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] text-white rounded-lg transition-colors flex items-center gap-2 shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                Exit Dashboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dashboard Content -->
+                <div class="max-w-7xl mx-auto px-6 py-6">
+                    <!-- Enhanced Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <!-- Total Charts Card -->
+                        <div class="group relative bg-gradient-to-br from-blue-900/40 to-blue-800/20 rounded-xl p-5 border border-blue-500/40 hover:border-blue-400 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20 cursor-pointer">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm font-medium text-blue-300">Total Charts</div>
+                                <div class="w-10 h-10 bg-blue-600/30 rounded-lg flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-blue-400">
+                                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="text-4xl font-bold text-blue-400 mb-1">${charts.length}</div>
+                            <div class="text-xs text-[var(--text-muted)]">Active visualizations</div>
+                        </div>
+                        
+                        <!-- Total Outliers Card -->
+                        <div class="group relative bg-gradient-to-br from-red-900/40 to-red-800/20 rounded-xl p-5 border border-red-500/40 hover:border-red-400 transition-all duration-300 hover:shadow-xl hover:shadow-red-500/20 cursor-pointer">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm font-medium text-red-300">Total Outliers</div>
+                                <div class="w-10 h-10 bg-red-600/30 rounded-lg flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-red-400">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="text-4xl font-bold text-red-400 mb-1" id="dashboard-total-outliers">0</div>
+                            <div class="text-xs text-[var(--text-muted)]" id="dashboard-outlier-breakdown">Loading...</div>
+                        </div>
+                        
+                        <!-- Avg Data Points Card -->
+                        <div class="group relative bg-gradient-to-br from-green-900/40 to-green-800/20 rounded-xl p-5 border border-green-500/40 hover:border-green-400 transition-all duration-300 hover:shadow-xl hover:shadow-green-500/20 cursor-pointer">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm font-medium text-green-300">Avg Data Points</div>
+                                <div class="w-10 h-10 bg-green-600/30 rounded-lg flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-green-400">
+                                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="text-4xl font-bold text-green-400 mb-1" id="dashboard-avg-value">0</div>
+                            <div class="text-xs text-[var(--text-muted)]">Per chart average</div>
+                        </div>
+                        
+                        <!-- Critical Alerts Card -->
+                        <div class="group relative bg-gradient-to-br from-purple-900/40 to-purple-800/20 rounded-xl p-5 border border-purple-500/40 hover:border-purple-400 transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/20 cursor-pointer">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm font-medium text-purple-300">Critical Alerts</div>
+                                <div class="w-10 h-10 bg-purple-600/30 rounded-lg flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-purple-400">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                    </svg>
+                                </div>
+                            </div>
+                            <div class="text-4xl font-bold text-purple-400 mb-1" id="dashboard-critical">0</div>
+                            <div class="text-xs text-[var(--text-muted)]">Charts with extremes</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter/Sort Bar -->
+                    <div class="mb-6 flex items-center justify-between bg-[var(--bg-element-dark)] rounded-xl p-4 border border-[var(--border-color)]">
+                        <div class="flex items-center gap-4">
+                            <span class="text-sm font-medium text-[var(--text-secondary)]">View:</span>
+                            <select id="dashboard-layout" onchange="window.dartApp.changeDashboardLayout(this.value)" class="bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-primary)] text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent">
+                                <option value="grid-2">Grid (2 columns)</option>
+                                <option value="grid-3">Grid (3 columns)</option>
+                                <option value="list">List View</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="text-sm font-medium text-[var(--text-secondary)]">Sort by:</span>
+                            <select id="dashboard-sort" onchange="window.dartApp.sortDashboard(this.value)" class="bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-primary)] text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--accent-primary)] focus:border-transparent">
+                                <option value="default">Default Order</option>
+                                <option value="outliers-desc">Most Outliers</option>
+                                <option value="outliers-asc">Least Outliers</option>
+                                <option value="name">Alphabetical</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Grid -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" id="dashboard-charts-grid">
+                        <!-- Charts will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Insert dashboard into body
+        document.body.insertAdjacentHTML('beforeend', dashboardHtml);
+        
+        // Populate dashboard with charts
+        const grid = document.getElementById('dashboard-charts-grid');
+        
+        charts.forEach(chartContainer => {
+            const chartClone = chartContainer.cloneNode(true);
+            chartClone.classList.add('bg-[var(--bg-element-dark)]', 'rounded-xl', 'p-4', 'border', 'border-[var(--border-color)]', 'hover:border-[var(--accent-primary)]', 'transition-all', 'cursor-pointer');
+            grid.appendChild(chartClone);
+            
+            // Extract data points from the first stat-box (Data Points)
+            const statBoxes = chartContainer.querySelectorAll('.stat-box');
+            if (statBoxes.length > 0) {
+                // First stat-box contains data points
+                const dataPointsValue = statBoxes[0].querySelector('.stat-value');
+                if (dataPointsValue) {
+                    const points = parseInt(dataPointsValue.textContent.trim()) || 0;
+                    totalDataPoints += points;
+                }
+            }
+            
+            // Extract outlier counts from Outlier Analysis section
+            const outlierSection = chartContainer.querySelector('.grid.grid-cols-1.md\\:grid-cols-3');
+            if (outlierSection) {
+                const outlierStatBoxes = outlierSection.querySelectorAll('.stat-box');
+                
+                // First box: Regular outliers (Outliers)
+                if (outlierStatBoxes[0]) {
+                    const regularOutliersValue = outlierStatBoxes[0].querySelector('.stat-value');
+                    if (regularOutliersValue) {
+                        const value = parseInt(regularOutliersValue.textContent.trim()) || 0;
+                        totalOutliers += value;
+                        if (value > 5) criticalCount++;
+                    }
+                }
+                
+                // Second box: Extreme High
+                if (outlierStatBoxes[1]) {
+                    const extremeHighValue = outlierStatBoxes[1].querySelector('.stat-value');
+                    if (extremeHighValue) {
+                        const text = extremeHighValue.textContent.replace('⭐', '').trim();
+                        const value = parseInt(text) || 0;
+                        totalOutliers += value;
+                        if (value > 0) criticalCount++;
+                    }
+                }
+                
+                // Third box: Extreme Low
+                if (outlierStatBoxes[2]) {
+                    const extremeLowValue = outlierStatBoxes[2].querySelector('.stat-value');
+                    if (extremeLowValue) {
+                        const text = extremeLowValue.textContent.replace('⭐', '').trim();
+                        const value = parseInt(text) || 0;
+                        totalOutliers += value;
+                        if (value > 0) criticalCount++;
+                    }
+                }
+            }
+        });
+        
+        // Update summary stats
+        document.getElementById('dashboard-total-outliers').textContent = totalOutliers;
+        document.getElementById('dashboard-avg-value').textContent = charts.length > 0 ? Math.round(totalDataPoints / charts.length) : 0;
+        document.getElementById('dashboard-critical').textContent = criticalCount;
+        
+        // Update outlier breakdown text
+        const breakdownText = extremeHigh + extremeLow > 0 
+            ? `${extremeHigh} ⭐ High • ${extremeLow} ⭐ Low`
+            : 'Regular outliers detected';
+        document.getElementById('dashboard-outlier-breakdown').textContent = breakdownText;
     }
 
     startNewConversation() {
@@ -1340,6 +1698,152 @@ applyTheme(theme) {
                 </div>
             </div>
         `;
+    }
+
+    // Dashboard helper functions
+    refreshDashboard() {
+        const dashboardView = document.querySelector('.dashboard-view');
+        if (dashboardView) {
+            dashboardView.remove();
+            // Get all chart containers
+            const charts = document.querySelectorAll('.chart-container');
+            this.showDashboard(charts);
+        }
+    }
+
+    exportDashboard() {
+        // Get all chart data
+        const charts = document.querySelectorAll('.chart-container');
+        const dashboardData = {
+            exportDate: new Date().toISOString(),
+            totalCharts: charts.length,
+            charts: []
+        };
+
+        charts.forEach((chart, index) => {
+            // Extract chart title
+            const titleElement = chart.querySelector('h3, h2');
+            const title = titleElement ? titleElement.textContent.trim() : `Chart ${index + 1}`;
+
+            // Extract statistics
+            const statBoxes = chart.querySelectorAll('.stat-box');
+            const stats = {};
+            statBoxes.forEach(box => {
+                const label = box.querySelector('.stat-label');
+                const value = box.querySelector('.stat-value');
+                if (label && value) {
+                    stats[label.textContent.trim()] = value.textContent.trim();
+                }
+            });
+
+            // Extract outlier counts
+            const outlierSection = chart.querySelector('.grid.grid-cols-1.md\\:grid-cols-3');
+            const outliers = {};
+            if (outlierSection) {
+                const outlierBoxes = outlierSection.querySelectorAll('.stat-box');
+                outlierBoxes.forEach(box => {
+                    const label = box.querySelector('.stat-label');
+                    const value = box.querySelector('.stat-value');
+                    if (label && value) {
+                        outliers[label.textContent.trim()] = value.textContent.trim();
+                    }
+                });
+            }
+
+            dashboardData.charts.push({
+                title,
+                stats,
+                outliers
+            });
+        });
+
+        // Create and download JSON file
+        const blob = new Blob([JSON.stringify(dashboardData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `DART_Dashboard_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        this.addMessage('✅ Dashboard data exported successfully!', 'bot');
+    }
+
+    changeDashboardLayout(layout) {
+        const grid = document.getElementById('dashboard-charts-grid');
+        if (!grid) return;
+
+        // Remove existing layout classes
+        grid.classList.remove('grid-cols-1', 'lg:grid-cols-2', 'lg:grid-cols-3');
+
+        // Apply new layout
+        switch(layout) {
+            case 'grid-2':
+                grid.classList.add('grid-cols-1', 'lg:grid-cols-2');
+                break;
+            case 'grid-3':
+                grid.classList.add('grid-cols-1', 'lg:grid-cols-3');
+                break;
+            case 'list':
+                grid.classList.add('grid-cols-1');
+                break;
+        }
+    }
+
+    sortDashboard(sortBy) {
+        const grid = document.getElementById('dashboard-charts-grid');
+        if (!grid) return;
+
+        const chartElements = Array.from(grid.children);
+        
+        chartElements.sort((a, b) => {
+            switch(sortBy) {
+                case 'outliers-desc': {
+                    const aOutliers = this.getChartOutlierCount(a);
+                    const bOutliers = this.getChartOutlierCount(b);
+                    return bOutliers - aOutliers; // Descending
+                }
+                case 'outliers-asc': {
+                    const aOutliers = this.getChartOutlierCount(a);
+                    const bOutliers = this.getChartOutlierCount(b);
+                    return aOutliers - bOutliers; // Ascending
+                }
+                case 'name': {
+                    const aName = this.getChartTitle(a);
+                    const bName = this.getChartTitle(b);
+                    return aName.localeCompare(bName);
+                }
+                default:
+                    return 0; // Keep original order
+            }
+        });
+
+        // Clear and re-append sorted elements
+        grid.innerHTML = '';
+        chartElements.forEach(chart => grid.appendChild(chart));
+    }
+
+    getChartOutlierCount(chartElement) {
+        const outlierSection = chartElement.querySelector('.grid.grid-cols-1.md\\:grid-cols-3');
+        if (!outlierSection) return 0;
+
+        let total = 0;
+        const outlierBoxes = outlierSection.querySelectorAll('.stat-box');
+        outlierBoxes.forEach(box => {
+            const value = box.querySelector('.stat-value');
+            if (value) {
+                const count = parseInt(value.textContent.trim()) || 0;
+                total += count;
+            }
+        });
+        return total;
+    }
+
+    getChartTitle(chartElement) {
+        const titleElement = chartElement.querySelector('h3, h2');
+        return titleElement ? titleElement.textContent.trim() : '';
     }
 }
 
