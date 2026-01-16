@@ -7,12 +7,12 @@
 
 const CONFIG = {
     // Backend API URL
-    // Change this based on your deployment:
-    // - Local development: 'http://localhost:5000/api'
-    // - Render deployment: 'https://your-app.onrender.com/api'
-    // - Heroku deployment: 'https://your-app.herokuapp.com/api'
-    // - Railway deployment: 'https://your-app.railway.app/api'
-    BACKEND_URL: 'https://dart-vz1l.onrender.com/api',
+    // Automatically detects environment:
+    // - GitHub Pages: Uses production Render URL
+    // - Local development: Uses localhost
+    BACKEND_URL: window.location.hostname === 'guruprasathm7.github.io' 
+        ? 'https://dart-vz1l.onrender.com/api'
+        : 'http://localhost:5000/api',
     
     // Application settings
     APP_NAME: 'DART Analytics',
