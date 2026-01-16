@@ -237,6 +237,9 @@ class DARTAnalytics {
         } else if (options.isFileInfo) {
             // File upload result with interactive form
             contentHtml = this.createFileInfoHtml(options.fileInfo);
+        } else if (options.isHtml) {
+            // Raw HTML content (for action buttons, etc.)
+            contentHtml = message;
         } else {
             // Regular text message with markdown support
             contentHtml = `<div class="prose">${marked.parse(message)}</div>`;
@@ -565,12 +568,12 @@ class DARTAnalytics {
                         </div>
                         <div class="mt-2 text-xs flex flex-wrap gap-3 text-[var(--text-secondary)]">
                             <span class="inline-flex items-center">
-                                <span class="w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>
+                                <span class="w-2 h-2 rounded-full bg-red-500 mr-1"></span>
                                 ${stats.total} outside control limits
                             </span>
                             <span class="mx-2">•</span>
                             <span class="inline-flex items-center">
-                                <span class="w-2 h-2 rounded-full bg-red-500 mr-1"></span>
+                                <span class="mr-1">⭐</span>
                                 ${stats.extreme_high + stats.extreme_low} extreme deviations
                             </span>
                         </div>
@@ -591,19 +594,19 @@ class DARTAnalytics {
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                         <!-- Regular Outliers (Combined) - Excluding Extreme -->
-                        <div class="stat-box ${(stats.total - stats.extreme_high - stats.extreme_low) > 0 ? 'bg-yellow-500/10' : ''}">
-                            <div class="stat-label">Regular Outliers</div>
-                            <div class="stat-value text-yellow-400">${stats.total - stats.extreme_high - stats.extreme_low}</div>
+                        <div class="stat-box ${(stats.total - stats.extreme_high - stats.extreme_low) > 0 ? 'bg-red-900/20' : ''}">
+                            <div class="stat-label">Outliers</div>
+                            <div class="stat-value text-red-500">${stats.total - stats.extreme_high - stats.extreme_low}</div>
                         </div>
                         
                         <!-- Extreme Outliers -->
-                        <div class="stat-box ${stats.extreme_high > 0 ? 'bg-red-900/20' : ''}">
+                        <div class="stat-box ${stats.extreme_high > 0 ? 'bg-red-900/30' : ''}">
                             <div class="stat-label">Extreme High</div>
-                            <div class="stat-value text-red-500">${stats.extreme_high}</div>
+                            <div class="stat-value text-red-600">⭐ ${stats.extreme_high}</div>
                         </div>
-                        <div class="stat-box ${stats.extreme_low > 0 ? 'bg-purple-900/20' : ''}">
+                        <div class="stat-box ${stats.extreme_low > 0 ? 'bg-red-900/30' : ''}">
                             <div class="stat-label">Extreme Low</div>
-                            <div class="stat-value text-purple-500">${stats.extreme_low}</div>
+                            <div class="stat-value text-red-600">⭐ ${stats.extreme_low}</div>
                         </div>
                     </div>
                     
@@ -691,6 +694,11 @@ class DARTAnalytics {
             const result = await res.json();
             if (!res.ok) throw new Error(result.error);
             
+            // Debug: Log the result to check excel_ready status
+            console.log('📊 Chart generation result:', result);
+            console.log('Excel ready?', result.excel_ready);
+            console.log('Excel file:', result.excel_file);
+            
             msg.remove();
             result.charts.sort((a, b) => (b.latter_half_outliers || 0) - (a.latter_half_outliers || 0));
             result.charts.forEach(chartData => {
@@ -699,6 +707,8 @@ class DARTAnalytics {
             });
             this.sessionChartCount += result.charts.length;
             this.updateExportButton();
+            
+            // Add success message
             this.addMessage(`✅ ${result.message}`, 'bot');
 
             // Add download and re-analyze buttons if Excel is ready
@@ -711,56 +721,34 @@ class DARTAnalytics {
             }
             
             if (result.excel_ready && excelFileForThisAnalysis) {
-                // Add a message about the download option
-                this.addMessage('📊 Your analysis is ready! You can download the Excel file with highlighted outliers.', 'bot');
-                // Create action buttons container
-                const actionDiv = document.createElement('div');
-                actionDiv.className = 'flex flex-wrap gap-3 justify-start mt-2';
-               
-                // Download Excel button - captures excelFileForThisAnalysis in closure
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'flex items-center gap-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] text-white px-4 py-2 rounded-lg transition-colors';
-                downloadBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
-                    </svg>
-                    Download Excel
+                // Create action buttons as a separate message
+                const actionButtonsHtml = `
+                    <div class="space-y-3">
+                        <p class="text-sm text-[var(--text-secondary)] mb-3">📊 Your analysis is ready! Choose an action:</p>
+                        <div class="flex flex-wrap gap-3">
+                            <button onclick="window.dartApp.downloadSpecificExcel('${excelFileForThisAnalysis}')" class="flex items-center gap-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-primary-hover)] text-white px-4 py-2 rounded-lg transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                </svg>
+                                Download Excel
+                            </button>
+                            <button onclick="window.dartApp.showAnalysisForm()" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                                </svg>
+                                Analyze with Different Parameters
+                            </button>
+                            <button onclick="window.dartApp.showChartSelectorModal()" class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                                </svg>
+                                Compare Charts
+                            </button>
+                        </div>
+                    </div>
                 `;
-                downloadBtn.addEventListener('click', () => this.downloadSpecificExcel(excelFileForThisAnalysis));
-               
-                // Analyze with Different Parameters button
-                const reAnalyzeBtn = document.createElement('button');
-                reAnalyzeBtn.className = 'flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors';
-                reAnalyzeBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
-                    </svg>
-                    Analyze with Different Parameters
-                `;
-                reAnalyzeBtn.addEventListener('click', () => this.showAnalysisForm());
-               
-                // Quick Compare button - new feature
-                const quickCompareBtn = document.createElement('button');
-                quickCompareBtn.className = 'flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors';
-                quickCompareBtn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                    </svg>
-                    Compare Charts
-                `;
-                quickCompareBtn.addEventListener('click', () => this.showChartSelectorModal());
-               
-                actionDiv.appendChild(downloadBtn);
-                actionDiv.appendChild(reAnalyzeBtn);
-                actionDiv.appendChild(quickCompareBtn);
-                // Add the action buttons to chat
-                const lastMessage = this.chatMessages.lastElementChild;
-                if (lastMessage) {
-                    const botMessageContent = lastMessage.querySelector('.max-w-3xl');
-                    if (botMessageContent) {
-                        botMessageContent.appendChild(actionDiv);
-                    }
-                }
+                
+                this.addMessage(actionButtonsHtml, 'bot', { isHtml: true });
             }
 
         } catch (error) {
@@ -1355,4 +1343,6 @@ applyTheme(theme) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => new DARTAnalytics());
+document.addEventListener('DOMContentLoaded', () => {
+    window.dartApp = new DARTAnalytics();
+});

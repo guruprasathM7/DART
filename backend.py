@@ -456,21 +456,21 @@ class CheckColumns:
             regular_values = plot_df.loc[regular_outliers_mask, 'outlier']
             ax.scatter(plot_df.loc[regular_outliers_mask, date_col],
                       regular_values,
-                      color='yellow', s=80, zorder=5, alpha=0.6,
-                      label=f'Regular Outliers ({regular_outliers_mask.sum()})')
+                      color='red', s=80, zorder=5, alpha=0.7,
+                      label=f'Outliers ({regular_outliers_mask.sum()})')
         
         if extreme_high_mask.any():
             ax.scatter(plot_df.loc[extreme_high_mask, date_col],
                       plot_df.loc[extreme_high_mask, 'extreme_high_outlier'],
-                      color='darkred', s=200, marker='*', zorder=7, 
-                      edgecolors='red', linewidth=1,
+                      color='red', s=200, marker='*', zorder=7, 
+                      edgecolors='darkred', linewidth=1,
                       label=f'Severe High Outliers ({extreme_high_mask.sum()})')
             
         if extreme_low_mask.any():
             ax.scatter(plot_df.loc[extreme_low_mask, date_col],
                       plot_df.loc[extreme_low_mask, 'extreme_low_outlier'],
-                      color='indigo', s=200, marker='*', zorder=7,
-                      edgecolors='purple', linewidth=1,
+                      color='red', s=200, marker='*', zorder=7,
+                      edgecolors='darkred', linewidth=1,
                       label=f'Severe Low Outliers ({extreme_low_mask.sum()})')
         
         if zero_mask.any():
@@ -662,6 +662,10 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
             if 'resampled_data' in chart:
                 resampled_df = pd.DataFrame(chart['resampled_data'])
                 
+                # Debug: Print what columns are in resampled_df
+                print(f"Resampled DataFrame columns: {resampled_df.columns.tolist()}")
+                print(f"First row sample: {resampled_df.head(1).to_dict('records')}")
+                
                 # Get outlier rows from resampled data
                 outlier_rows = resampled_df[resampled_df['outlier'].notna()]
                 
@@ -669,11 +673,16 @@ def highlight_outliers_excel(df, value_col, date_col, charts_data, session_id, f
                 
                 for _, outlier_row in outlier_rows.iterrows():
                     # Get the date value from the outlier row
-                    # For multi-column, it will be the combined string
-                    # For single column, it will be a datetime
-                    if isinstance(date_col, list):
-                        # Multi-column: use the combined column value
-                        outlier_date_value = outlier_row[date_col_for_matching]
+                    # The resampled data has a 'date' column that contains the combined date string
+                    if 'date' in outlier_row:
+                        outlier_date_value = outlier_row['date']
+                    elif isinstance(date_col, list):
+                        # Try to get from individual columns if they exist
+                        if all(col in outlier_row.index for col in date_col):
+                            outlier_date_value = '_'.join(str(outlier_row[col]) for col in date_col)
+                        else:
+                            print(f"Warning: Could not find date columns in outlier row. Available: {outlier_row.index.tolist()}")
+                            continue
                     else:
                         # Single column: convert to datetime
                         outlier_date_value = pd.to_datetime(outlier_row[date_col])
